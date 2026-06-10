@@ -146,7 +146,7 @@ app.post('/api/auth/login', async (c) => {
         .run();
       const feats = getDefaultFeaturesForPlan('professional');
       await db.prepare('INSERT INTO user_features (user_id, social_networks_limit, schedulings_limit, auto_posting, ads_manager, ai_optimization, gemini_integration, exportable_reports) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.ads_manager, feats.ai_optimization, feats.gemini_integration, feats.exportable_reports)
+        .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.adsManager, feats.aiOptimization, feats.geminiIntegration, feats.exportableReports)
         .run();
       
       userRow = await db.prepare(`
@@ -194,7 +194,7 @@ app.post('/api/auth/login', async (c) => {
 
     const feats = getDefaultFeaturesForPlan('starter');
     await db.prepare('INSERT INTO user_features (user_id, social_networks_limit, schedulings_limit, auto_posting, ads_manager, ai_optimization, gemini_integration, exportable_reports) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.ads_manager, feats.ai_optimization, feats.gemini_integration, feats.exportable_reports)
+      .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.adsManager, feats.aiOptimization, feats.geminiIntegration, feats.exportableReports)
       .run();
 
     // Seed default starter accounts/posts for better trial experience
@@ -237,7 +237,7 @@ app.post('/api/auth/signup', async (c) => {
 
   const feats = getDefaultFeaturesForPlan(plan);
   await db.prepare('INSERT INTO user_features (user_id, social_networks_limit, schedulings_limit, auto_posting, ads_manager, ai_optimization, gemini_integration, exportable_reports) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.ads_manager, feats.ai_optimization, feats.gemini_integration, feats.exportable_reports)
+    .bind(id, feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.adsManager, feats.aiOptimization, feats.geminiIntegration, feats.exportableReports)
     .run();
 
   // Seed default starter accounts

@@ -120,7 +120,9 @@ export const Dashboard = () => {
       if (selectedAccountId === 'all') return true;
       const acc = connectedAccounts.find(a => a.id === selectedAccountId);
       if (!acc) return true;
-      return p.platforms.includes(acc.platform);
+      const socialPlatforms = ['instagram', 'facebook', 'tiktok'];
+      if (!socialPlatforms.includes(acc.platform as any)) return false;
+      return p.platforms.includes(acc.platform as 'instagram' | 'facebook' | 'tiktok');
     })
     .slice(0, 5);
 

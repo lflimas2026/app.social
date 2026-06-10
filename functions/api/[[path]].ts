@@ -280,6 +280,7 @@ app.post('/api/auth/update-profile', async (c) => {
     UPDATE users 
     SET first_name = COALESCE(?, first_name),
         last_name = COALESCE(?, last_name),
+        cpf = COALESCE(?, cpf),
         company_name = COALESCE(?, company_name),
         avatar_url = COALESCE(?, avatar_url),
         timezone = COALESCE(?, timezone),
@@ -289,6 +290,7 @@ app.post('/api/auth/update-profile', async (c) => {
   await c.env.DB.prepare(query).bind(
     data.first_name ?? null,
     data.last_name ?? null,
+    data.cpf ?? null,
     data.company_name ?? null,
     data.avatar_url ?? null,
     data.timezone ?? null,

@@ -48,6 +48,7 @@ export const Settings = () => {
   const [lastName, setLastName] = useState(user?.last_name || 'Lima');
   const [companyName, setCompanyName] = useState(user?.company_name || 'Runtime IA');
   const [email, setEmail] = useState(user?.email || 'fernando@runtime.ia.br');
+  const [cpf, setCpf] = useState(user?.cpf || '');
 
   // Form states - Security
   const [currentPassword, setCurrentPassword] = useState('');
@@ -66,7 +67,8 @@ export const Settings = () => {
       first_name: firstName,
       last_name: lastName,
       company_name: companyName,
-      email: email
+      email: email,
+      cpf: cpf
     });
     addToast('Perfil atualizado com sucesso!', 'success');
   };
@@ -242,6 +244,20 @@ export const Settings = () => {
                       style={{ paddingLeft: '2.25rem' }}
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>CPF</label>
+                  <div className="input-with-icon">
+                    <Key size={16} className="input-icon" />
+                    <input
+                      type="text"
+                      className="input-field"
+                      style={{ paddingLeft: '2.25rem' }}
+                      value={cpf}
+                      onChange={(e) => setCpf(e.target.value.replace(/[^0-9]/g, ''))}
                     />
                   </div>
                 </div>

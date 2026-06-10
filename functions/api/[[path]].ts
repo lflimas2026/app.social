@@ -658,6 +658,67 @@ app.post('/api/payments/asaas-upgrade', async (c) => {
   return c.json({ success: true });
 });
 
+// Asaas Webhook integration receiver
+app.post('/api/payments/asaas-webhook', async (c) => {
+  try {
+    const payload = await c.req.json();
+    const db = c.env.DB;
+    const { event, payment } = payload;
+
+    // Processar apenas se o pagamento foi confirmado/recebido
+    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+      const userId = payment.externalReference;
+      const amount = payment.value;
+      const billingType = payment.billingType; // PIX, CREDIT_CARD, BOLETO
+
+      if (userId) {
+        // Determinar o plano pelo valor pago (Starter: 99, Pro: 149)
+        let plan: 'starter' | 'professional' = 'starter';
+        let planName = 'Plano Starter';
+        if (amount >= 149.00) {
+          plan = 'professional';
+          planName = 'Plano Professional';
+        }
+
+        const nextBilling = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // 1. Atualizar o plano do usuário no D1
+        await db.prepare('UPDATE users SET plan = ?, subscription_status = "active", next_billing_date = ? WHERE id = ?')
+          .bind(plan, nextBilling, userId).run();
+
+        // 2. Atualizar as permissões do usuário
+        const feats = getDefaultFeaturesForPlan(plan);
+        await db.prepare('UPDATE user_features SET social_networks_limit = ?, schedulings_limit = ?, auto_posting = ?, ads_manager = ?, ai_optimization = ?, gemini_integration = ?, exportable_reports = ? WHERE user_id = ?')
+          .bind(feats.socialNetworksLimit, feats.schedulingsLimit, feats.autoPosting, feats.ads_manager, feats.ai_optimization, feats.gemini_integration, feats.exportable_reports, userId).run();
+
+        // 3. Cadastrar a fatura correspondente
+        const invId = '#ASAAS-' + payment.id;
+        const paymentMethod = billingType === 'PIX' ? 'pix' : billingType === 'CREDIT_CARD' ? 'credit_card' : 'boleto';
+
+        await db.prepare('INSERT INTO invoices (id, user_id, date, plan_name, amount, payment_method, status) VALUES (?, ?, ?, ?, ?, ?, "Pago")')
+          .bind(invId, userId, new Date().toLocaleDateString('pt-BR'), planName, amount, paymentMethod).run();
+
+        // 4. Criar registro de auditoria no banco
+        await db.prepare(`
+          INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, created_at)
+          VALUES (?, ?, ?, 'campaign', ?, ?)
+        `).bind(
+          uuid(),
+          userId,
+          `Upgrade de plano via Webhook Asaas para ${planName} (${billingType})`,
+          invId,
+          new Date().toISOString()
+        ).run();
+      }
+    }
+
+    return c.json({ success: true });
+  } catch (err: any) {
+    console.error('Erro no Webhook Asaas:', err);
+    return c.json({ error: 'Erro interno: ' + err.message }, 500);
+  }
+});
+
 // Admin Panel operations
 app.get('/api/admin/users', async (c) => {
   const user = await getAuthUser(c);

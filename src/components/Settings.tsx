@@ -18,19 +18,34 @@ import {
 } from 'lucide-react';
 
 export const Settings = () => {
-  const { currentUser: user, invoices, simulateAsaasUpgrade, updateProfile, addToast } = useApp();
+  const { 
+    currentUser: user, 
+    invoices, 
+    simulateAsaasUpgrade, 
+    updateProfile, 
+    addToast,
+    createPixPayment,
+    createCardPayment,
+    createSubscription,
+    cancelSubscription
+  } = useApp();
   
   const [activeSubTab, setActiveSubTab] = useState<'profile' | 'plan' | 'alerts' | 'security'>('profile');
 
   // Checkout modal states
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
-  const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional'>('starter');
+  const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional' | 'enterprise'>('starter');
   const [payMethod, setPayMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
   const [cardHolder, setCardHolder] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+
+  // Real Asaas payment response states
+  const [pixQrCode, setPixQrCode] = useState('');
+  const [pixCopyPaste, setPixCopyPaste] = useState('');
+  const [invoiceUrl, setInvoiceUrl] = useState('');
 
   // Form states - Profile
   const [firstName, setFirstName] = useState(user?.first_name || 'Fernando');
@@ -76,30 +91,56 @@ export const Settings = () => {
     setConfirmPassword('');
   };
 
-  const handleUpgradePlan = (planName: 'starter' | 'professional') => {
+  const handleUpgradePlan = (planName: 'starter' | 'professional' | 'enterprise') => {
     setCheckoutPlan(planName);
     setPayMethod('pix');
+    setPixQrCode('');
+    setPixCopyPaste('');
+    setInvoiceUrl('');
     setCheckoutModalOpen(true);
   };
 
   const handleConfirmAsaasPayment = async () => {
-    if (payMethod === 'credit_card' && (!cardHolder || !cardNumber || !cardExpiry || !cardCvv)) {
-      addToast('Preencha os dados do cartão de crédito para continuar.', 'warning');
-      return;
-    }
-
     setIsProcessingCheckout(true);
-    const price = checkoutPlan === 'starter' ? 99 : 149;
-    
+    try {
+      if (payMethod === 'pix') {
+        addToast('Gerando PIX no Asaas...', 'info');
+        const res = await createPixPayment(checkoutPlan);
+        if (res && res.qr_code) {
+          setPixQrCode(res.qr_code);
+          setPixCopyPaste(res.pix_copy_paste);
+          addToast('PIX gerado! Aguardando pagamento no Asaas...', 'success');
+        }
+      } else if (payMethod === 'credit_card') {
+        addToast('Redirecionando para o Gateway do Asaas...', 'info');
+        const res = await createCardPayment(checkoutPlan);
+        if (res && res.invoiceUrl) {
+          setInvoiceUrl(res.invoiceUrl);
+          window.open(res.invoiceUrl, '_blank');
+          addToast('Conclua o pagamento na aba aberta para ativar o plano.', 'success');
+        }
+      } else {
+        // Fallback for simulation/boleto
+        const price = checkoutPlan === 'starter' ? 99 : checkoutPlan === 'professional' ? 149 : 499;
+        const success = await simulateAsaasUpgrade(checkoutPlan, payMethod, price);
+        if (success) {
+          setCheckoutModalOpen(false);
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsProcessingCheckout(false);
+    }
+  };
+
+  const handleSimulateQuickBypass = async () => {
+    setIsProcessingCheckout(true);
+    const price = checkoutPlan === 'starter' ? 99 : checkoutPlan === 'professional' ? 149 : 499;
     const success = await simulateAsaasUpgrade(checkoutPlan, payMethod, price);
     setIsProcessingCheckout(false);
-
     if (success) {
       setCheckoutModalOpen(false);
-      setCardHolder('');
-      setCardNumber('');
-      setCardExpiry('');
-      setCardCvv('');
     }
   };
 
@@ -223,8 +264,44 @@ export const Settings = () => {
               <h2 className="settings-panel-title">Plano de Assinatura & Faturamento</h2>
               <p className="settings-panel-subtitle">Gerencie seu plano atual, faça upgrades rápidos via checkout Asaas e veja faturas.</p>
 
+              {/* Subscription Status details if not Free */}
+              {user?.plan !== 'free' && (
+                <div style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '1.5rem', backgroundColor: 'var(--bg-app)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>Sua Assinatura Ativa (Asaas)</h4>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      Plano Atual: <strong style={{ textTransform: 'uppercase' }}>{user?.plan}</strong> | 
+                      Status: <span className={`badge badge-${user?.subscription_status === 'active' ? 'success' : 'warning'}`} style={{ marginLeft: '4px' }}>{user?.subscription_status}</span>
+                    </p>
+                    {user?.next_due_date && (
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Próximo Vencimento: <strong>{new Date(user.next_due_date).toLocaleDateString('pt-BR')}</strong>
+                      </p>
+                    )}
+                    {user?.asaas_customer_id && (
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        Customer ID: {user.asaas_customer_id}
+                      </p>
+                    )}
+                  </div>
+                  {user?.subscription_status === 'active' && (
+                    <button
+                      onClick={async () => {
+                        if (confirm('Tem certeza que deseja cancelar sua assinatura recorrente? Seu acesso aos recursos será limitado ao final do período pago.')) {
+                          await cancelSubscription();
+                        }
+                      }}
+                      className="btn btn-outline btn-sm"
+                      style={{ borderColor: 'var(--color-error)', color: 'var(--color-error)' }}
+                    >
+                      Cancelar Assinatura
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Plans Compare Row */}
-              <div className="plans-compare-grid">
+              <div className="plans-compare-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                 {/* Plan 1: Free */}
                 <div className={`plan-compare-card ${user?.plan === 'free' ? 'current' : ''}`}>
                   {user?.plan === 'free' && <div className="plan-badge">Atual</div>}
@@ -264,14 +341,9 @@ export const Settings = () => {
                     <li><Check size={12} className="feat-ok" /> Gerenciador de Anúncios</li>
                     <li><Check size={12} className="feat-ok" /> IA de otimização básica</li>
                   </ul>
-                  {user?.plan !== 'starter' && user?.plan !== 'professional' && (
+                  {user?.plan !== 'starter' && (
                     <button onClick={() => handleUpgradePlan('starter')} className="btn btn-primary btn-sm upgrade-btn">
                       Adquirir Starter
-                    </button>
-                  )}
-                  {user?.plan === 'professional' && (
-                    <button onClick={() => handleUpgradePlan('starter')} className="btn btn-outline btn-sm upgrade-btn">
-                      Mudar para Starter
                     </button>
                   )}
                 </div>
@@ -300,6 +372,34 @@ export const Settings = () => {
                   {user?.plan !== 'professional' && (
                     <button onClick={() => handleUpgradePlan('professional')} className="btn btn-primary btn-sm upgrade-btn">
                       Upgrade Pro
+                    </button>
+                  )}
+                </div>
+
+                {/* Plan 4: Enterprise */}
+                <div className={`plan-compare-card premium ${user?.plan === 'enterprise' ? 'current' : ''}`} style={{ borderColor: 'var(--color-primary)' }}>
+                  {user?.plan === 'enterprise' && <div className="plan-badge">Atual</div>}
+                  <div className="plan-badge sparkles" style={{ backgroundColor: 'var(--color-primary)' }}>
+                    <Building size={10} />
+                    Corporativo
+                  </div>
+                  <span className="plan-title">Plano Enterprise</span>
+                  <div className="plan-price-row">
+                    <span className="price-currency">R$</span>
+                    <span className="price-num">499</span>
+                    <span className="price-period">/mês</span>
+                  </div>
+                  <ul className="plan-features-list">
+                    <li><Check size={12} className="feat-ok" /> 20 redes sociais conectadas</li>
+                    <li><Check size={12} className="feat-ok" /> Agendamentos ilimitados</li>
+                    <li><Check size={12} className="feat-ok" /> Auto-posting ativo</li>
+                    <li><Check size={12} className="feat-ok" /> Gerenciador de Anúncios avançado</li>
+                    <li><Check size={12} className="feat-ok" /> Gemini 2.5 Flash integrada</li>
+                    <li><Check size={12} className="feat-ok" /> Suporte prioritário 24/7</li>
+                  </ul>
+                  {user?.plan !== 'enterprise' && (
+                    <button onClick={() => handleUpgradePlan('enterprise')} className="btn btn-primary btn-sm upgrade-btn">
+                      Adquirir Enterprise
                     </button>
                   )}
                 </div>
@@ -396,11 +496,7 @@ export const Settings = () => {
                         ))
                       )}
                     </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* ASAAS CHECKOUT MODAL */}
+                        {/* ASAAS CHECKOUT MODAL */}
               {checkoutModalOpen && (
                 <div className="overlay">
                   <div className="modal-content" style={{ maxWidth: '520px' }}>
@@ -408,10 +504,10 @@ export const Settings = () => {
                       <div>
                         <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <QrCode size={18} color="var(--color-primary)" />
-                          Asaas Checkout Gateway (Sandbox)
+                          Checkout Asaas Payment Gateway
                         </h3>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
-                          Simule a compra segura do plano {checkoutPlan.toUpperCase()}
+                          Adquira com segurança o plano {checkoutPlan.toUpperCase()}
                         </p>
                       </div>
                       <button onClick={() => setCheckoutModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -425,13 +521,13 @@ export const Settings = () => {
                         <div className="flex-between">
                           <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>Plano Selecionado</span>
                           <span style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            Plano {checkoutPlan === 'starter' ? 'Starter' : 'Professional'}
+                            Plano {checkoutPlan.toUpperCase()}
                           </span>
                         </div>
                         <div className="flex-between" style={{ marginTop: '4px' }}>
                           <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>Valor Mensal</span>
                           <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-primary)' }}>
-                            R$ {checkoutPlan === 'starter' ? '99,00' : '149,00'}
+                            R$ {checkoutPlan === 'starter' ? '99,00' : checkoutPlan === 'professional' ? '149,00' : '499,00'}
                           </span>
                         </div>
                       </div>
@@ -450,14 +546,7 @@ export const Settings = () => {
                           className={payMethod === 'credit_card' ? 'active' : ''}
                           onClick={() => setPayMethod('credit_card')}
                         >
-                          Cartão de Crédito
-                        </button>
-                        <button
-                          type="button"
-                          className={payMethod === 'boleto' ? 'active' : ''}
-                          onClick={() => setPayMethod('boleto')}
-                        >
-                          Boleto Bancário
+                          Cartão de Crédito / Boleto
                         </button>
                       </div>
 
@@ -466,118 +555,103 @@ export const Settings = () => {
                         {/* PIX SCREEN */}
                         {payMethod === 'pix' && (
                           <div className="pix-screen-wrapper flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
-                            <div className="pix-qr-box" style={{ background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                              {/* Standard mockup QR code block */}
-                              <img
-                                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=00020126580014br.gov.bcb.pix0136asaas-sandbox-pix-socialapp202653039865802BR5913Runtime%20IA6009Sao%20Paulo62070503***6304d9c7"
-                                alt="Pix QR Code Sandbox"
-                                style={{ width: '150px', height: '150px' }}
-                              />
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0, maxWidth: '280px' }}>
-                              Escaneie o QR Code acima com o app do seu banco ou utilize o código Copia e Cola abaixo.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText('00020126580014br.gov.bcb.pix0136asaas-sandbox-pix-socialapp202653039865802BR5913Runtime%20IA6009Sao%20Paulo62070503***6304d9c7');
-                                addToast('Código Pix copiado!', 'success');
-                              }}
-                              className="btn btn-outline btn-sm"
-                            >
-                              Copiar Código Pix
-                            </button>
+                            {!pixQrCode ? (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleConfirmAsaasPayment}
+                                disabled={isProcessingCheckout}
+                                style={{ width: '100%', padding: '0.75rem' }}
+                              >
+                                {isProcessingCheckout ? 'Gerando PIX no Asaas...' : 'Gerar QR Code PIX via Asaas'}
+                              </button>
+                            ) : (
+                              <>
+                                <div className="pix-qr-box" style={{ background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                  <img
+                                    src={`data:image/png;base64,${pixQrCode}`}
+                                    alt="Pix QR Code Asaas"
+                                    style={{ width: '150px', height: '150px' }}
+                                  />
+                                </div>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0, maxWidth: '320px' }}>
+                                  Escaneie o QR Code acima com o app do seu banco. O plano será ativado assim que o pagamento for detectado pelo webhook.
+                                </p>
+                                <div style={{ width: '100%' }}>
+                                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                                    Código Copia e Cola:
+                                  </label>
+                                  <textarea
+                                    readOnly
+                                    value={pixCopyPaste}
+                                    style={{ width: '100%', height: '60px', padding: '6px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', resize: 'none' }}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(pixCopyPaste);
+                                    addToast('Código Pix copiado!', 'success');
+                                  }}
+                                  className="btn btn-outline btn-sm"
+                                  style={{ width: '100%' }}
+                                >
+                                  Copiar Código Pix
+                                </button>
+                              </>
+                            )}
                           </div>
                         )}
 
-                        {/* CREDIT CARD SCREEN */}
+                        {/* CREDIT CARD & BOLETO SCREEN */}
                         {payMethod === 'credit_card' && (
-                          <div className="credit-card-form" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <div className="form-group">
-                              <label>Nome Impresso no Cartão</label>
-                              <input
-                                type="text"
-                                className="input-field"
-                                placeholder="EX: FERNANDO LIMA"
-                                value={cardHolder}
-                                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-                              />
-                            </div>
-
-                            <div className="form-group">
-                              <label>Número do Cartão</label>
-                              <input
-                                type="text"
-                                className="input-field"
-                                placeholder="4444 5555 6666 7777"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(e.target.value)}
-                              />
-                            </div>
-
-                            <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                              <div className="form-group">
-                                <label>Vencimento (MM/AA)</label>
-                                <input
-                                  type="text"
-                                  placeholder="12/29"
-                                  className="input-field"
-                                  value={cardExpiry}
-                                  onChange={(e) => setCardExpiry(e.target.value)}
-                                />
-                              </div>
-                              <div className="form-group">
-                                <label>CVV (Código Segurança)</label>
-                                <input
-                                  type="text"
-                                  placeholder="123"
-                                  className="input-field"
-                                  value={cardCvv}
-                                  onChange={(e) => setCardCvv(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                            <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary)' }}>
-                              💳 Sandbox Ativo: Você pode preencher qualquer dado fictício para simular o recebimento.
-                            </span>
-                          </div>
-                        )}
-
-                        {/* BOLETO SCREEN */}
-                        {payMethod === 'boleto' && (
-                          <div className="boleto-screen-wrapper flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
-                            <div className="boleto-mock-box" style={{ width: '100%', border: '1px dashed var(--border-color)', borderRadius: '6px', padding: '1rem', backgroundColor: 'var(--bg-app)' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
-                                Linha Digitável do Boleto Asaas:
-                              </span>
-                              <code style={{ fontSize: '0.8rem', display: 'block', wordBreak: 'break-all', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                                00190.00009 02672.480006 90001.000171 7 982300000{checkoutPlan === 'starter' ? '9900' : '14900'}
-                              </code>
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
-                              O boleto expira em 3 dias corridos. Você pode pagar simulando a compensação imediata abaixo.
+                          <div className="pix-screen-wrapper flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '1rem 0', textAlign: 'center' }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              Para sua total segurança, o faturamento por Cartão ou Boleto é processado pelo checkout seguro e criptografado do Asaas.
                             </p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(`00190.00009 02672.480006 90001.000171 7 982300000${checkoutPlan === 'starter' ? '9900' : '14900'}`);
-                                addToast('Código de barras do boleto copiado!', 'success');
-                              }}
-                              className="btn btn-outline btn-sm"
-                            >
-                              Copiar Código de Barras
-                            </button>
+                            {!invoiceUrl ? (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleConfirmAsaasPayment}
+                                disabled={isProcessingCheckout}
+                                style={{ width: '100%', padding: '0.75rem' }}
+                              >
+                                {isProcessingCheckout ? 'Gerando link seguro...' : 'Gerar Fatura / Link de Pagamento'}
+                              </button>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                <a
+                                  href={invoiceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn btn-primary"
+                                  style={{ width: '100%', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                >
+                                  <span>Ir para Faturamento Asaas</span>
+                                  <ExternalLink size={14} />
+                                </a>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                  Uma nova guia foi aberta. Caso não tenha visto, clique no botão acima para abrir a fatura.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="modal-footer">
-                      <button onClick={() => setCheckoutModalOpen(false)} className="btn btn-outline" disabled={isProcessingCheckout}>
-                        Cancelar
+                    <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+                      <button
+                        onClick={handleSimulateQuickBypass}
+                        className="btn btn-outline"
+                        style={{ color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
+                        disabled={isProcessingCheckout}
+                      >
+                        Bypass Rápido (Sandbox)
                       </button>
-                      <button onClick={handleConfirmAsaasPayment} className="btn btn-primary" disabled={isProcessingCheckout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isProcessingCheckout ? 'Processando Asaas...' : 'Confirmar Pagamento Simulado'}
+                      <button onClick={() => setCheckoutModalOpen(false)} className="btn btn-outline" disabled={isProcessingCheckout}>
+                        Fechar
                       </button>
                     </div>
                   </div>

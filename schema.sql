@@ -9,6 +9,9 @@ DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS connected_accounts;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS user_features;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS subscriptions;
+DROP TABLE IF EXISTS asaas_webhook_events;
 DROP TABLE IF EXISTS users;
 
 -- 1. Users Table
@@ -23,7 +26,11 @@ CREATE TABLE users (
   theme TEXT DEFAULT 'dark',
   plan TEXT DEFAULT 'free',
   subscription_status TEXT DEFAULT 'active',
-  next_billing_date TEXT,
+  subscription_id TEXT,
+  asaas_customer_id TEXT,
+  payment_status TEXT,
+  last_payment_date TEXT,
+  next_due_date TEXT,
   is_admin INTEGER DEFAULT 0, -- 0 = false, 1 = true
   is_blocked INTEGER DEFAULT 0, -- 0 = false, 1 = true
   created_at TEXT NOT NULL
@@ -154,11 +161,48 @@ CREATE TABLE invoices (
   status TEXT NOT NULL -- Pago, Pendente, Vencido
 );
 
+-- 10. Subscriptions Table
+CREATE TABLE subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asaas_subscription_id TEXT,
+  plan_name TEXT,
+  billing_type TEXT,
+  amount REAL,
+  status TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 11. Payments Table
+CREATE TABLE payments (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  asaas_payment_id TEXT,
+  subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
+  amount REAL,
+  billing_type TEXT,
+  status TEXT,
+  invoice_url TEXT,
+  pix_copy_paste TEXT,
+  paid_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 12. Asaas Webhook Events Table
+CREATE TABLE asaas_webhook_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 -- --- SEED DATA ---
 
 -- 1. Seed Users
 -- Admin
-INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_billing_date, is_admin, is_blocked, created_at)
+INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_due_date, is_admin, is_blocked, created_at)
 VALUES (
   'usr_admin',
   'lflimas2022@gmail.com',
@@ -177,7 +221,7 @@ VALUES (
 );
 
 -- Professional User
-INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_billing_date, is_admin, is_blocked, created_at)
+INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_due_date, is_admin, is_blocked, created_at)
 VALUES (
   'usr_f1293',
   'fernando@runtime.ia.br',
@@ -196,7 +240,7 @@ VALUES (
 );
 
 -- Free User
-INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_billing_date, is_admin, is_blocked, created_at)
+INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_due_date, is_admin, is_blocked, created_at)
 VALUES (
   'usr_free',
   'free@test.com',
@@ -215,7 +259,7 @@ VALUES (
 );
 
 -- Starter User
-INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_billing_date, is_admin, is_blocked, created_at)
+INSERT INTO users (id, email, first_name, last_name, company_name, avatar_url, timezone, theme, plan, subscription_status, next_due_date, is_admin, is_blocked, created_at)
 VALUES (
   'usr_starter',
   'starter@test.com',

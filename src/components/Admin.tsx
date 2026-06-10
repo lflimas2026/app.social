@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp, getDefaultFeaturesForPlan } from '../context/AppContext';
 import {
   Users,
@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const Admin = () => {
-  const { allUsers, adminCreateCompany, adminUpdateCompanyFeatures, addToast } = useApp();
+  const { allUsers, adminCreateCompany, adminUpdateCompanyFeatures, addToast, getFinancialMetrics } = useApp();
 
   // Search filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,11 +26,11 @@ export const Admin = () => {
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
-  const [newPlan, setNewPlan] = useState<'free' | 'starter' | 'professional'>('free');
+  const [newPlan, setNewPlan] = useState<'free' | 'starter' | 'professional' | 'enterprise'>('free');
 
   // Resource Editor Modal state
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [editPlan, setEditPlan] = useState<'free' | 'starter' | 'professional'>('free');
+  const [editPlan, setEditPlan] = useState<'free' | 'starter' | 'professional' | 'enterprise'>('free');
   const [editIsBlocked, setEditIsBlocked] = useState(false);
   const [editSocialLimit, setEditSocialLimit] = useState(3);
   const [editSchedulingLimit, setEditSchedulingLimit] = useState(10);
@@ -39,6 +39,22 @@ export const Admin = () => {
   const [editAiOpt, setEditAiOpt] = useState(true);
   const [editGemini, setEditGemini] = useState(true);
   const [editExportableReports, setEditExportableReports] = useState(true);
+
+  // Financial KPIs states
+  const [financialMetrics, setFinancialMetrics] = useState<any>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      setIsLoadingMetrics(true);
+      const res = await getFinancialMetrics();
+      if (res) {
+        setFinancialMetrics(res);
+      }
+      setIsLoadingMetrics(false);
+    };
+    fetchMetrics();
+  }, []);
 
   // Stats calculation
   const totalCompanies = allUsers.filter(u => !u.isAdmin).length;
@@ -50,6 +66,7 @@ export const Admin = () => {
     .reduce((acc, u) => {
       if (u.plan === 'starter') return acc + 99;
       if (u.plan === 'professional') return acc + 149;
+      if (u.plan === 'enterprise') return acc + 499;
       return acc;
     }, 0);
 
@@ -83,7 +100,7 @@ export const Admin = () => {
   };
 
   // Sync editor fields with selected plan when plan changes in the dropdown (defaults helper)
-  const handlePlanChange = (plan: 'free' | 'starter' | 'professional') => {
+  const handlePlanChange = (plan: 'free' | 'starter' | 'professional' | 'enterprise') => {
     setEditPlan(plan);
     const defaults = getDefaultFeaturesForPlan(plan);
     setEditSocialLimit(defaults.socialNetworksLimit);
@@ -138,48 +155,86 @@ export const Admin = () => {
         </div>
       </div>
 
-      {/* METRICS ROW */}
-      <div className="admin-stats-grid">
-        <div className="card admin-stat-card">
-          <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
-            <Users size={20} />
+        {/* METRICS ROW */}
+        <div className="admin-stats-grid">
+          <div className="card admin-stat-card">
+            <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
+              <Users size={20} />
+            </div>
+            <div className="stat-meta">
+              <span className="stat-label">Total de Empresas</span>
+              <span className="stat-value">{totalCompanies}</span>
+            </div>
           </div>
-          <div className="stat-meta">
-            <span className="stat-label">Total de Empresas</span>
-            <span className="stat-value">{totalCompanies}</span>
-          </div>
-        </div>
 
-        <div className="card admin-stat-card">
-          <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
-            <DollarSign size={20} />
-          </div>
-          <div className="stat-meta">
-            <span className="stat-label">Faturamento Simulado</span>
-            <span className="stat-value">R$ {monthlyRevenue}/mês</span>
-          </div>
-        </div>
+          {financialMetrics && (
+            <>
+              <div className="card admin-stat-card">
+                <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+                  <BarChart3 size={20} />
+                </div>
+                <div className="stat-meta">
+                  <span className="stat-label">MRR (Receita Mensal Recorrente)</span>
+                  <span className="stat-value">R$ {financialMetrics.mrr?.toLocaleString('pt-BR') ?? '—'}</span>
+                </div>
+              </div>
 
-        <div className="card admin-stat-card">
-          <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
-            <AlertTriangle size={20} />
-          </div>
-          <div className="stat-meta">
-            <span className="stat-label">Empresas Bloqueadas</span>
-            <span className="stat-value">{blockedCompanies}</span>
-          </div>
-        </div>
+              <div className="card admin-stat-card">
+                <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+                  <DollarSign size={20} />
+                </div>
+                <div className="stat-meta">
+                  <span className="stat-label">ARR (Receita Anual Recorrente)</span>
+                  <span className="stat-value">R$ {financialMetrics.arr?.toLocaleString('pt-BR') ?? '—'}</span>
+                </div>
+              </div>
 
-        <div className="card admin-stat-card">
-          <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(6, 182, 212, 0.1)', color: 'var(--color-secondary)' }}>
-            <CheckCircle size={20} />
+              <div className="card admin-stat-card">
+                <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-error)' }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div className="stat-meta">
+                  <span className="stat-label">Churn (%)</span>
+                  <span className="stat-value">{financialMetrics.churn != null ? `${financialMetrics.churn}%` : '—'}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Fallback simulated revenue card when metrics not loaded */}
+          {!financialMetrics && (
+            <div className="card admin-stat-card">
+              <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+                <DollarSign size={20} />
+              </div>
+              <div className="stat-meta">
+                <span className="stat-label">Faturamento Simulado</span>
+                <span className="stat-value">R$ {monthlyRevenue}/mês</span>
+              </div>
+            </div>
+          )}
+
+          <div className="card admin-stat-card">
+            <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+              <AlertTriangle size={20} />
+            </div>
+            <div className="stat-meta">
+              <span className="stat-label">Empresas Bloqueadas</span>
+              <span className="stat-value">{blockedCompanies}</span>
+            </div>
           </div>
-          <div className="stat-meta">
-            <span className="stat-label">Empresas Ativas</span>
-            <span className="stat-value">{activeCompanies}</span>
+
+          <div className="card admin-stat-card">
+            <div className="stat-icon-wrapper" style={{ backgroundColor: 'rgba(6, 182, 212, 0.1)', color: 'var(--color-secondary)' }}>
+              <CheckCircle size={20} />
+            </div>
+            <div className="stat-meta">
+              <span className="stat-label">Empresas Ativas</span>
+              <span className="stat-value">{activeCompanies}</span>
+            </div>
           </div>
         </div>
-      </div>
+        
 
       {/* MAIN TWO COLUMN CONTENT */}
       <div className="admin-content-layout">

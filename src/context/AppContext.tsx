@@ -22,9 +22,13 @@ export interface User {
   avatar_url: string | null;
   timezone: string;
   theme: 'light' | 'dark' | 'auto';
-  plan: 'free' | 'starter' | 'professional';
-  subscription_status: 'active' | 'canceled' | 'expired';
-  next_billing_date: string | null;
+  plan: 'free' | 'starter' | 'professional' | 'enterprise';
+  subscription_status: 'active' | 'canceled' | 'expired' | 'past_due';
+  subscription_id: string | null;
+  asaas_customer_id: string | null;
+  payment_status: string | null;
+  last_payment_date: string | null;
+  next_due_date: string | null;
   created_at: string;
   isAdmin?: boolean;
   isBlocked?: boolean;
@@ -142,7 +146,7 @@ export interface Invoice {
   status: 'Pago' | 'Pendente' | 'Vencido';
 }
 
-export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'professional'): UserFeatures => {
+export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'professional' | 'enterprise'): UserFeatures => {
   switch (plan) {
     case 'free':
       return {
@@ -165,9 +169,19 @@ export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'profession
         exportableReports: false
       };
     case 'professional':
-    default:
       return {
         socialNetworksLimit: 6,
+        schedulingsLimit: 999999,
+        autoPosting: true,
+        adsManager: true,
+        aiOptimization: true,
+        geminiIntegration: true,
+        exportableReports: true
+      };
+    case 'enterprise':
+    default:
+      return {
+        socialNetworksLimit: 20,
         schedulingsLimit: 999999,
         autoPosting: true,
         adsManager: true,
@@ -230,9 +244,14 @@ interface AppContextType {
   clearNotifications: () => void;
 
   // Admin / Payments API
-  adminCreateCompany: (email: string, firstName: string, lastName: string, companyName: string, plan: 'free' | 'starter' | 'professional') => void;
-  adminUpdateCompanyFeatures: (userId: string, data: { plan: 'free' | 'starter' | 'professional'; features: UserFeatures; isBlocked: boolean }) => void;
-  simulateAsaasUpgrade: (plan: 'starter' | 'professional', paymentMethod: 'pix' | 'credit_card' | 'boleto', value: number) => Promise<boolean>;
+  adminCreateCompany: (email: string, firstName: string, lastName: string, companyName: string, plan: 'free' | 'starter' | 'professional' | 'enterprise') => void;
+  adminUpdateCompanyFeatures: (userId: string, data: { plan: 'free' | 'starter' | 'professional' | 'enterprise'; features: UserFeatures; isBlocked: boolean }) => void;
+  simulateAsaasUpgrade: (plan: 'starter' | 'professional' | 'enterprise', paymentMethod: 'pix' | 'credit_card' | 'boleto', value: number) => Promise<boolean>;
+  createPixPayment: (planId: string) => Promise<any>;
+  createCardPayment: (planId: string) => Promise<any>;
+  createSubscription: (planId: string, billingType: 'PIX' | 'CREDIT_CARD') => Promise<boolean>;
+  cancelSubscription: () => Promise<boolean>;
+  getFinancialMetrics: () => Promise<any>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -653,7 +672,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     firstName: string,
     lastName: string,
     companyName: string,
-    plan: 'free' | 'starter' | 'professional'
+    plan: 'free' | 'starter' | 'professional' | 'enterprise'
   ) => {
     try {
       await apiFetch('/api/admin/users/create', {
@@ -669,7 +688,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const adminUpdateCompanyFeatures = async (
     userId: string,
-    data: { plan: 'free' | 'starter' | 'professional'; features: UserFeatures; isBlocked: boolean }
+    data: { plan: 'free' | 'starter' | 'professional' | 'enterprise'; features: UserFeatures; isBlocked: boolean }
   ) => {
     try {
       await apiFetch('/api/admin/users/update-features', {
@@ -688,7 +707,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const simulateAsaasUpgrade = async (
-    plan: 'starter' | 'professional',
+    plan: 'starter' | 'professional' | 'enterprise',
     paymentMethod: 'pix' | 'credit_card' | 'boleto',
     value: number
   ): Promise<boolean> => {
@@ -706,6 +725,74 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (err: any) {
       addToast(err.message || 'Erro no pagamento Asaas.', 'error');
       return false;
+    }
+  };
+
+  const createPixPayment = async (planId: string): Promise<any> => {
+    try {
+      return await apiFetch('/api/payments/pix', {
+        method: 'POST',
+        body: JSON.stringify({ plan_id: planId })
+      });
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao gerar pagamento PIX.', 'error');
+      throw err;
+    }
+  };
+
+  const createCardPayment = async (planId: string): Promise<any> => {
+    try {
+      return await apiFetch('/api/payments/card', {
+        method: 'POST',
+        body: JSON.stringify({ plan_id: planId })
+      });
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao gerar pagamento de Cartão.', 'error');
+      throw err;
+    }
+  };
+
+  const createSubscription = async (planId: string, billingType: 'PIX' | 'CREDIT_CARD'): Promise<boolean> => {
+    addToast('Gerando assinatura no Asaas...', 'info');
+    try {
+      await apiFetch('/api/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({ plan_id: planId, billing_type: billingType })
+      });
+      const me = await apiFetch('/api/auth/me');
+      setCurrentUser(me.user);
+      loadUserData();
+      addToast(`Assinatura ativa para o plano ${planId.toUpperCase()}!`, 'success');
+      return true;
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao assinar plano.', 'error');
+      return false;
+    }
+  };
+
+  const cancelSubscription = async (): Promise<boolean> => {
+    addToast('Cancelando assinatura no Asaas...', 'info');
+    try {
+      await apiFetch('/api/subscriptions', {
+        method: 'DELETE'
+      });
+      const me = await apiFetch('/api/auth/me');
+      setCurrentUser(me.user);
+      loadUserData();
+      addToast('Sua assinatura foi cancelada. O acesso permanecerá ativo até o final do período pago.', 'success');
+      return true;
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao cancelar assinatura.', 'error');
+      return false;
+    }
+  };
+
+  const getFinancialMetrics = async (): Promise<any> => {
+    try {
+      return await apiFetch('/api/admin/financial-metrics');
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao buscar métricas financeiras.', 'error');
+      return null;
     }
   };
 
@@ -751,7 +838,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         clearNotifications,
         adminCreateCompany,
         adminUpdateCompanyFeatures,
-        simulateAsaasUpgrade
+        simulateAsaasUpgrade,
+        createPixPayment,
+        createCardPayment,
+        createSubscription,
+        cancelSubscription,
+        getFinancialMetrics
       }}
     >
       {children}

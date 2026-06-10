@@ -15,7 +15,7 @@ import {
 import { InstagramIcon as Instagram, FacebookIcon as Facebook } from './SocialIcons';
 
 export const Integrations = () => {
-  const { connectedAccounts, connectAccount, disconnectAccount, forceSync } = useApp();
+  const { currentUser, connectedAccounts, connectAccount, disconnectAccount, forceSync, addToast } = useApp();
   const [syncing, setSyncing] = useState(false);
 
   const [connectModalOpen, setConnectModalOpen] = useState(false);
@@ -45,6 +45,21 @@ export const Integrations = () => {
   const handleConnectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountNameInput.trim()) return;
+
+    // Plan Limit Check for Social Networks
+    const isSocialPlatform = selectedPlatform === 'instagram' || selectedPlatform === 'facebook' || selectedPlatform === 'tiktok';
+    if (isSocialPlatform) {
+      const connectedSocials = connectedAccounts.filter(
+        (c) => c.platform === 'instagram' || c.platform === 'facebook' || c.platform === 'tiktok'
+      );
+      
+      const limit = currentUser?.features?.socialNetworksLimit ?? 1;
+      if (connectedSocials.length >= limit) {
+        addToast(`Limite atingido! Seu plano atual permite apenas ${limit} rede(s) social(ais) conectada(s). Faça upgrade nas Configurações!`, 'warning');
+        setConnectModalOpen(false);
+        return;
+      }
+    }
 
     connectAccount(selectedPlatform, accountNameInput.trim());
     setConnectModalOpen(false);
@@ -132,12 +147,21 @@ export const Integrations = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={() => handleOpenConnect(platform.id)}
+                    onClick={() => {
+                      if ((platform.id === 'meta_ads' || platform.id === 'tiktok_ads') && !currentUser?.features?.adsManager) {
+                        addToast('O módulo de Gerenciamento de Anúncios está desativado no seu plano. Faça upgrade!', 'warning');
+                        return;
+                      }
+                      handleOpenConnect(platform.id);
+                    }}
                     className="btn btn-primary btn-sm"
-                    style={{ width: '100%' }}
+                    style={{ 
+                      width: '100%', 
+                      opacity: ((platform.id === 'meta_ads' || platform.id === 'tiktok_ads') && !currentUser?.features?.adsManager) ? 0.6 : 1 
+                    }}
                   >
                     <Link2 size={12} />
-                    Conectar Conta
+                    {((platform.id === 'meta_ads' || platform.id === 'tiktok_ads') && !currentUser?.features?.adsManager) ? 'Premium (Bloqueado)' : 'Conectar Conta'}
                   </button>
                 )}
               </div>

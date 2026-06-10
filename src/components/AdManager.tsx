@@ -9,7 +9,8 @@ import {
   Layers,
   Info,
   X,
-  PlusCircle
+  PlusCircle,
+  Lock
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -25,6 +26,7 @@ import {
 
 export const AdManager = () => {
   const {
+    currentUser,
     campaigns,
     addCampaign,
     toggleCampaignStatus,
@@ -130,6 +132,91 @@ export const AdManager = () => {
   const filteredCampaigns = campaigns.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (!currentUser?.features?.adsManager) {
+    return (
+      <div className="ads-blocked-screen animate-fade-in">
+        <div className="card blocked-content-card">
+          <div className="blocked-shield-icon">
+            <Lock size={40} color="var(--color-primary)" />
+          </div>
+          <h2>Recurso Premium: Gerenciador de Anúncios</h2>
+          <p>
+            O módulo de criação e monitoramento de campanhas patrocinadas do Meta Ads e TikTok Ads está disponível apenas nos planos <strong>Starter</strong> e <strong>Professional</strong>.
+          </p>
+          <div className="blocked-feature-list">
+            <div className="feature-item-tick">🚀 Criar campanhas pagas diretamente da plataforma</div>
+            <div className="feature-item-tick">📊 Monitoramento de gastos, CTR, conversões e ROAS</div>
+            <div className="feature-item-tick">💡 Recomendações em tempo real por Inteligência Artificial</div>
+          </div>
+          <button className="btn btn-primary" onClick={() => addToast('Navegue até "Configurações" no menu lateral para fazer o upgrade.', 'info')}>
+            Liberar Gerenciador de Anúncios
+          </button>
+        </div>
+        <style>{`
+          .ads-blocked-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: calc(100vh - 170px);
+            min-height: 500px;
+          }
+          .blocked-content-card {
+            max-width: 500px;
+            width: 100%;
+            padding: 3rem 2rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+          }
+          .blocked-shield-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: rgba(59, 130, 246, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+          }
+          .blocked-content-card h2 {
+            font-size: 1.35rem;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            font-weight: 700;
+          }
+          .blocked-content-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+          }
+          .blocked-feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 2rem;
+            text-align: left;
+            width: 100%;
+            background-color: var(--bg-app);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+          }
+          .feature-item-tick {
+            font-size: 0.775rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="ads-page animate-fade-in">

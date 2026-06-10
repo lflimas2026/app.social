@@ -28,7 +28,7 @@ const MOCK_MEDIA_OPTIONS = [
 ];
 
 export const Calendar = () => {
-  const { posts, addPost, updatePost, deletePost, addToast } = useApp();
+  const { currentUser, posts, addPost, updatePost, deletePost, addToast } = useApp();
 
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'list'>('week');
   
@@ -122,6 +122,20 @@ export const Calendar = () => {
       return;
     }
 
+    // Monthly Scheduling Limit Check
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthlySchedulings = posts.filter(p => {
+      const d = new Date(p.created_at || p.scheduled_at);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+
+    const limit = currentUser?.features?.schedulingsLimit ?? 10;
+    if (!editingPost && monthlySchedulings >= limit) {
+      addToast(`Limite atingido! Seu plano atual permite apenas ${limit} agendamentos mensais. Faça upgrade nas Configurações!`, 'warning');
+      return;
+    }
+
     const scheduledTimestamp = publishNow
       ? new Date().toISOString()
       : new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString();
@@ -147,6 +161,11 @@ export const Calendar = () => {
 
   // AI HASHTAG SUGGESTIONS
   const handleGenerateHashtags = () => {
+    if (!currentUser?.features?.aiOptimization) {
+      addToast('A IA de Otimização Básica está desativada no seu plano. Faça upgrade para liberar!', 'warning');
+      return;
+    }
+
     if (!content.trim()) {
       addToast('Escreva algum conteúdo primeiro para obter sugestões.', 'info');
       return;
@@ -172,9 +191,28 @@ export const Calendar = () => {
     // Default fallback tags
     suggestionsSet.add('marketing').add('socialapp').add('digital');
 
-    const result = Array.from(suggestionsSet).map(tag => `#${tag}`).join(', ');
+    const result = Array.from(suggestionsSet).join(', ');
     setHashtags((prev) => prev ? `${prev}, ${result}` : result);
     addToast('Hashtags sugeridas por IA adicionadas!', 'success');
+  };
+
+  const handleGeminiGenerate = () => {
+    if (!currentUser?.features?.geminiIntegration) {
+      addToast('A integração Gemini 2.5 Flash está bloqueada no seu plano atual (apenas no plano Professional).', 'warning');
+      return;
+    }
+
+    addToast('Gemini 2.5 Flash gerando legenda otimizada...', 'info');
+    setTimeout(() => {
+      const ideas = [
+        "Transforme a gestão das suas redes sociais com simplicidade e inteligência! 🚀 Descubra como a nossa plataforma pode automatizar o seu agendamento de posts e gerar relatórios otimizados em segundos. Clique no link da bio para um teste gratuito! 🎯✨",
+        "A consistência é a chave para o crescimento digital! 🔑 Com nossa ferramenta de auto-posting ativo, suas campanhas rodam no piloto automático enquanto você foca no que realmente importa: expandir seu negócio. 📈💡",
+        "Criatividade + Dados = Sucesso Garantido. 📊 Descubra insights profundos do seu público com o nosso Analytics avançado. Pronto para elevar o nível do seu marketing? 🚀🔥"
+      ];
+      const randomIdea = ideas[Math.floor(Math.random() * ideas.length)];
+      setContent(randomIdea);
+      addToast('Legenda gerada pelo Gemini 2.5 Flash!', 'success');
+    }, 1000);
   };
 
   // DRAG AND DROP
@@ -496,7 +534,30 @@ export const Calendar = () => {
                 {/* Content Input */}
                 <div className="form-group">
                   <div className="flex-between">
-                    <label>Legenda do Post</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Legenda do Post</span>
+                      <button 
+                        type="button" 
+                        onClick={handleGeminiGenerate} 
+                        className="gemini-badge-btn animate-pulse"
+                        style={{
+                          backgroundColor: 'rgba(168, 85, 247, 0.12)',
+                          color: '#a855f7',
+                          border: '1px solid rgba(168, 85, 247, 0.25)',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <Sparkles size={10} />
+                        Gemini 2.5 Flash
+                      </button>
+                    </label>
                     <span className={`char-counter ${isOverLimit ? 'over' : ''}`}>
                       {charCount}/{getCharLimit()}
                     </span>
@@ -510,9 +571,64 @@ export const Calendar = () => {
                   />
                 </div>
 
-                {/* Media Preset Selection Grid */}
+                {/* Media Selection (Cloudflare R2 Upload & Presets) */}
                 <div className="form-group">
-                  <label>Mídia da Postagem (Mock Upload)</label>
+                  <label>Mídia da Postagem (Upload no Cloudflare R2 ou escolha um preset)</label>
+                  
+                  <div className="r2-upload-container" style={{ marginBottom: '12px' }}>
+                    <input
+                      type="file"
+                      id="r2-file-input"
+                      style={{ display: 'none' }}
+                      accept="image/*,video/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        
+                        addToast('Fazendo upload para Cloudflare R2...', 'info');
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        try {
+                          const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                              'Authorization': `Bearer ${localStorage.getItem('social_user_id')}`
+                            }
+                          });
+                          if (!res.ok) throw new Error('Falha no upload');
+                          const data = await res.json();
+                          setMediaUrls([data.url]);
+                          addToast('Upload concluído com sucesso!', 'success');
+                        } catch (err: any) {
+                          addToast('Erro ao fazer upload da imagem: ' + err.message, 'error');
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('r2-file-input')?.click()}
+                      style={{
+                        width: '100%',
+                        padding: '16px',
+                        border: '2px dashed var(--border-color, #374151)',
+                        borderRadius: '8px',
+                        background: 'var(--bg-secondary, #1f2937)',
+                        color: 'var(--text-secondary, #9ca3af)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s'
+                      }}
+                    >
+                      <Upload size={16} />
+                      <span>Fazer upload de imagem/vídeo para R2</span>
+                    </button>
+                  </div>
+
                   <div className="preset-media-grid">
                     {MOCK_MEDIA_OPTIONS.map((media) => {
                       const isSelected = mediaUrls.includes(media.url);
@@ -523,7 +639,6 @@ export const Calendar = () => {
                             if (isSelected) {
                               setMediaUrls(mediaUrls.filter((url) => url !== media.url));
                             } else {
-                              // Standard single select image for mock
                               setMediaUrls([media.url]);
                             }
                           }}

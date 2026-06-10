@@ -7,6 +7,7 @@ import { AdManager } from './components/AdManager';
 import { Analytics } from './components/Analytics';
 import { Integrations } from './components/Integrations';
 import { Settings } from './components/Settings';
+import { Admin } from './components/Admin';
 
 const AppContent = () => {
   const { currentUser, activeTab } = useApp();
@@ -23,6 +24,7 @@ const AppContent = () => {
       {activeTab === 'analytics' && <Analytics />}
       {activeTab === 'integrations' && <Integrations />}
       {activeTab === 'settings' && <Settings />}
+      {activeTab === 'admin' && <Admin />}
     </Layout>
   );
 };

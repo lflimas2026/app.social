@@ -17,7 +17,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   MessageCircle,
-  X
+  X,
+  Shield
 } from 'lucide-react';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -66,6 +67,93 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 
+  if (currentUser?.isAdmin) {
+    navItems.push({ id: 'admin', label: 'Admin', icon: Shield });
+  }
+
+  if (currentUser?.isBlocked) {
+    return (
+      <div className="blocked-screen">
+        <div className="blocked-card animate-pop">
+          <div className="blocked-icon-box">
+            <AlertTriangle size={48} color="var(--color-error)" />
+          </div>
+          <h2>Conta Suspensa</h2>
+          <p>
+            Seu acesso ao <strong>Social App</strong> foi suspenso temporariamente pelo administrador do sistema ou por pendências financeiras.
+          </p>
+          <div className="blocked-details">
+            <span>Empresa: {currentUser.company_name}</span>
+            <span>E-mail: {currentUser.email}</span>
+          </div>
+          <button onClick={logout} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LogOut size={16} style={{ marginRight: '8px' }} />
+            Sair da Conta
+          </button>
+        </div>
+        <style>{`
+          .blocked-screen {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-app);
+            padding: 1.5rem;
+          }
+          .blocked-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 3rem 2rem;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: var(--shadow-lg);
+          }
+          .blocked-icon-box {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: rgba(239, 68, 68, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+          }
+          .blocked-card h2 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            font-weight: 700;
+          }
+          .blocked-card p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+          }
+          .blocked-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            background-color: var(--bg-app);
+            padding: 0.75rem;
+            border-radius: var(--radius-md);
+            width: 100%;
+            border: 1px solid var(--border-color);
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* LEFT SIDEBAR */}
@@ -102,7 +190,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </nav>
 
         {/* UPGRADE PRO BANNER */}
-        {currentUser?.plan !== 'agency' && (
+        {currentUser?.plan !== 'professional' && !currentUser?.isAdmin && (
           <div className="upgrade-card">
             <div className="upgrade-header">
               <Sparkles size={16} className="upgrade-sparkle" />

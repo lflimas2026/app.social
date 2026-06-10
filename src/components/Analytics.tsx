@@ -22,10 +22,13 @@ import {
 } from 'recharts';
 
 export const Analytics = () => {
-  const { posts, campaigns, addToast } = useApp();
+  const { currentUser, posts, campaigns, addToast } = useApp();
 
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [selectedNetwork, setSelectedNetwork] = useState<'all' | 'instagram' | 'facebook' | 'tiktok'>('all');
+
+  const isFree = currentUser?.plan === 'free';
+  const activeRange = isFree ? '7d' : dateRange;
 
   // AGGREGATE POST METRICS
   const publishedPosts = posts.filter((p) => p.status === 'published');
@@ -85,8 +88,11 @@ export const Analytics = () => {
   const topPosts = [...publishedPosts]
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 5);
-
   const handleExportPDF = () => {
+    if (!currentUser?.features?.exportableReports) {
+      addToast('A exportação de relatórios em PDF/CSV está bloqueada no seu plano atual (disponível no plano Professional).', 'warning');
+      return;
+    }
     addToast('Preparando PDF para download...', 'info');
     setTimeout(() => {
       addToast('Relatório analítico exportado com sucesso!', 'success');
@@ -95,6 +101,14 @@ export const Analytics = () => {
 
   const handleShareReport = () => {
     addToast('Link público do relatório copiado para a área de transferência!', 'success');
+  };
+
+  const handleSelectDateRange = (range: '7d' | '30d' | '90d') => {
+    if (isFree && range !== '7d') {
+      addToast('Seu plano atual (Free) permite apenas visualização básica de 7 dias. Faça upgrade para ver períodos maiores!', 'warning');
+      return;
+    }
+    setDateRange(range);
   };
 
   return (
@@ -120,12 +134,12 @@ export const Analytics = () => {
             <option value="facebook">Facebook</option>
             <option value="tiktok">TikTok</option>
           </select>
-
+ 
           {/* Date Selector */}
           <div className="date-toggle-tabs">
-            <button onClick={() => setDateRange('7d')} className={dateRange === '7d' ? 'active' : ''}>7D</button>
-            <button onClick={() => setDateRange('30d')} className={dateRange === '30d' ? 'active' : ''}>30D</button>
-            <button onClick={() => setDateRange('90d')} className={dateRange === '90d' ? 'active' : ''}>90D</button>
+            <button onClick={() => handleSelectDateRange('7d')} className={activeRange === '7d' ? 'active' : ''}>7D</button>
+            <button onClick={() => handleSelectDateRange('30d')} className={activeRange === '30d' ? 'active' : ''}>30D</button>
+            <button onClick={() => handleSelectDateRange('90d')} className={activeRange === '90d' ? 'active' : ''}>90D</button>
           </div>
 
           <button onClick={handleShareReport} className="btn btn-outline" style={{ padding: '0.5rem' }} title="Compartilhar Link">

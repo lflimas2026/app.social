@@ -11,13 +11,26 @@ import {
   Building,
   Mail,
   Shield,
-  Key
+  Key,
+  ExternalLink,
+  QrCode,
+  X
 } from 'lucide-react';
 
 export const Settings = () => {
-  const { currentUser: user, updateProfile, addToast } = useApp();
+  const { currentUser: user, invoices, simulateAsaasUpgrade, updateProfile, addToast } = useApp();
   
   const [activeSubTab, setActiveSubTab] = useState<'profile' | 'plan' | 'alerts' | 'security'>('profile');
+
+  // Checkout modal states
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional'>('starter');
+  const [payMethod, setPayMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   // Form states - Profile
   const [firstName, setFirstName] = useState(user?.first_name || 'Fernando');
@@ -63,8 +76,31 @@ export const Settings = () => {
     setConfirmPassword('');
   };
 
-  const handleUpgradePlan = (planName: string) => {
-    addToast(`Redirecionando para o checkout do plano ${planName}...`, 'info');
+  const handleUpgradePlan = (planName: 'starter' | 'professional') => {
+    setCheckoutPlan(planName);
+    setPayMethod('pix');
+    setCheckoutModalOpen(true);
+  };
+
+  const handleConfirmAsaasPayment = async () => {
+    if (payMethod === 'credit_card' && (!cardHolder || !cardNumber || !cardExpiry || !cardCvv)) {
+      addToast('Preencha os dados do cartão de crédito para continuar.', 'warning');
+      return;
+    }
+
+    setIsProcessingCheckout(true);
+    const price = checkoutPlan === 'starter' ? 99 : 149;
+    
+    const success = await simulateAsaasUpgrade(checkoutPlan, payMethod, price);
+    setIsProcessingCheckout(false);
+
+    if (success) {
+      setCheckoutModalOpen(false);
+      setCardHolder('');
+      setCardNumber('');
+      setCardExpiry('');
+      setCardCvv('');
+    }
   };
 
   return (
@@ -183,74 +219,145 @@ export const Settings = () => {
 
           {/* TAB 2: PLANS & BILLING */}
           {activeSubTab === 'plan' && (
-            <div className="card settings-panel-card">
-              <h2 className="settings-panel-title">Plano de Assinatura</h2>
-              <p className="settings-panel-subtitle">Gerencie suas mensalidades, upgrades e limite de posts</p>
+            <div className="card settings-panel-card animate-fade-in">
+              <h2 className="settings-panel-title">Plano de Assinatura & Faturamento</h2>
+              <p className="settings-panel-subtitle">Gerencie seu plano atual, faça upgrades rápidos via checkout Asaas e veja faturas.</p>
 
               {/* Plans Compare Row */}
               <div className="plans-compare-grid">
-                {/* Plan 1 */}
-                <div className="plan-compare-card current">
-                  <div className="plan-badge">Atual</div>
-                  <span className="plan-title">Plano Starter</span>
+                {/* Plan 1: Free */}
+                <div className={`plan-compare-card ${user?.plan === 'free' ? 'current' : ''}`}>
+                  {user?.plan === 'free' && <div className="plan-badge">Atual</div>}
+                  <span className="plan-title">Plano Free</span>
                   <div className="plan-price-row">
                     <span className="price-currency">R$</span>
                     <span className="price-num">0</span>
                     <span className="price-period">/mês</span>
                   </div>
                   <ul className="plan-features-list">
-                    <li><Check size={12} className="feat-ok" /> Até 2 contas conectadas</li>
-                    <li><Check size={12} className="feat-ok" /> 10 postagens por mês</li>
+                    <li><Check size={12} className="feat-ok" /> 1 rede social conectada</li>
+                    <li><Check size={12} className="feat-ok" /> 10 agendamentos mensais</li>
                     <li><Check size={12} className="feat-ok" /> Analytics básico (7 dias)</li>
+                    <li style={{ opacity: 0.5 }}><X size={12} style={{ color: 'var(--color-error)' }} /> Sem Auto-posting ativo</li>
+                    <li style={{ opacity: 0.5 }}><X size={12} style={{ color: 'var(--color-error)' }} /> Sem IA / Gemini Integrada</li>
                   </ul>
+                  {user?.plan !== 'free' && (
+                    <button onClick={() => addToast('Entre em contato com o administrador para migrar para o plano grátis.', 'info')} className="btn btn-outline btn-sm upgrade-btn">
+                      Downgrade
+                    </button>
+                  )}
                 </div>
 
-                {/* Plan 2 */}
-                <div className="plan-compare-card premium">
+                {/* Plan 2: Starter */}
+                <div className={`plan-compare-card ${user?.plan === 'starter' ? 'current' : ''}`}>
+                  {user?.plan === 'starter' && <div className="plan-badge">Atual</div>}
+                  <span className="plan-title">Plano Starter</span>
+                  <div className="plan-price-row">
+                    <span className="price-currency">R$</span>
+                    <span className="price-num">99</span>
+                    <span className="price-period">/mês</span>
+                  </div>
+                  <ul className="plan-features-list">
+                    <li><Check size={12} className="feat-ok" /> 3 redes sociais conectadas</li>
+                    <li><Check size={12} className="feat-ok" /> Agendamentos ilimitados</li>
+                    <li><Check size={12} className="feat-ok" /> Auto-posting ativo</li>
+                    <li><Check size={12} className="feat-ok" /> Gerenciador de Anúncios</li>
+                    <li><Check size={12} className="feat-ok" /> IA de otimização básica</li>
+                  </ul>
+                  {user?.plan !== 'starter' && user?.plan !== 'professional' && (
+                    <button onClick={() => handleUpgradePlan('starter')} className="btn btn-primary btn-sm upgrade-btn">
+                      Adquirir Starter
+                    </button>
+                  )}
+                  {user?.plan === 'professional' && (
+                    <button onClick={() => handleUpgradePlan('starter')} className="btn btn-outline btn-sm upgrade-btn">
+                      Mudar para Starter
+                    </button>
+                  )}
+                </div>
+
+                {/* Plan 3: Professional */}
+                <div className={`plan-compare-card premium ${user?.plan === 'professional' ? 'current' : ''}`}>
+                  {user?.plan === 'professional' && <div className="plan-badge">Atual</div>}
                   <div className="plan-badge sparkles">
                     <Sparkles size={10} />
-                    Popular
+                    Completo
                   </div>
-                  <span className="plan-title">Plano Pro</span>
+                  <span className="plan-title">Plano Professional</span>
                   <div className="plan-price-row">
                     <span className="price-currency">R$</span>
                     <span className="price-num">149</span>
                     <span className="price-period">/mês</span>
                   </div>
                   <ul className="plan-features-list">
-                    <li><Check size={12} className="feat-ok" /> Contas conectadas ilimitadas</li>
-                    <li><Check size={12} className="feat-ok" /> Postagens ilimitadas</li>
-                    <li><Check size={12} className="feat-ok" /> Otimização de Anúncios por IA</li>
-                    <li><Check size={12} className="feat-ok" /> Histórico de 90 dias de métricas</li>
+                    <li><Check size={12} className="feat-ok" /> 6 redes sociais conectadas</li>
+                    <li><Check size={12} className="feat-ok" /> Agendamentos ilimitados</li>
+                    <li><Check size={12} className="feat-ok" /> Auto-posting ativo</li>
+                    <li><Check size={12} className="feat-ok" /> Gerenciador de Anúncios avançado</li>
+                    <li><Check size={12} className="feat-ok" /> Gemini 2.5 Flash integrada</li>
+                    <li><Check size={12} className="feat-ok" /> Relatórios PDF exportáveis</li>
                   </ul>
-                  <button onClick={() => handleUpgradePlan('Pro')} className="btn btn-primary btn-sm upgrade-btn">
-                    Fazer Upgrade
-                  </button>
+                  {user?.plan !== 'professional' && (
+                    <button onClick={() => handleUpgradePlan('professional')} className="btn btn-primary btn-sm upgrade-btn">
+                      Upgrade Pro
+                    </button>
+                  )}
                 </div>
+              </div>
 
-                {/* Plan 3 */}
-                <div className="plan-compare-card">
-                  <span className="plan-title">Plano Agency</span>
-                  <div className="plan-price-row">
-                    <span className="price-currency">R$</span>
-                    <span className="price-num">499</span>
-                    <span className="price-period">/mês</span>
+              {/* Official Asaas Integration Step-by-Step Guide */}
+              <div className="asaas-guide-section" style={{ marginTop: '2rem' }}>
+                <h3 className="settings-panel-title flex-center" style={{ fontSize: '0.95rem', gap: '8px', color: 'var(--color-primary)' }}>
+                  <ExternalLink size={16} />
+                  Guia Oficial de Integração Asaas (Fluxo de Produção Real)
+                </h3>
+                <p className="settings-panel-subtitle" style={{ marginBottom: '1rem' }}>
+                  Siga este passo a passo para conectar os pagamentos do Social App com a sua conta oficial do Asaas.
+                </p>
+
+                <div className="asaas-steps-layout">
+                  <div className="asaas-step-card">
+                    <div className="step-num">1</div>
+                    <div className="step-body">
+                      <strong>Criar conta Sandbox ou Produção:</strong>
+                      <p>Acesse <a href="https://www.asaas.com" target="_blank" rel="noreferrer">asaas.com</a> e crie uma conta. Use o ambiente de testes em <a href="https://sandbox.asaas.com" target="_blank" rel="noreferrer">sandbox.asaas.com</a> durante o desenvolvimento.</p>
+                    </div>
                   </div>
-                  <ul className="plan-features-list">
-                    <li><Check size={12} className="feat-ok" /> Tudo do Plano Pro</li>
-                    <li><Check size={12} className="feat-ok" /> Relatórios em PDF Whitelabel</li>
-                    <li><Check size={12} className="feat-ok" /> Suporte dedicado 24/7</li>
-                    <li><Check size={12} className="feat-ok" /> Acesso multi-usuário (Times)</li>
-                  </ul>
-                  <button onClick={() => handleUpgradePlan('Agency')} className="btn btn-outline btn-sm upgrade-btn">
-                    Falar com Vendas
-                  </button>
+
+                  <div className="asaas-step-card">
+                    <div className="step-num">2</div>
+                    <div className="step-body">
+                      <strong>Gerar Token de Acesso (API Key):</strong>
+                      <p>Vá em <i>Minha Conta &gt; Integrações &gt; Gerar Chave de API</i>. Guarde essa chave secreta de forma segura em suas variáveis de ambiente (ASAAS_API_KEY).</p>
+                    </div>
+                  </div>
+
+                  <div className="asaas-step-card">
+                    <div className="step-num">3</div>
+                    <div className="step-body">
+                      <strong>Configurar Webhook para Notificação de Pagamento:</strong>
+                      <p>Nas configurações de integração, cadastre a URL de Webhook de retorno para a sua API Cloudflare Worker/Next.js (ex: https://api.socialapp.com/webhooks/asaas). Ative o envio de eventos para:</p>
+                      <ul style={{ paddingLeft: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        <li><code>PAYMENT_RECEIVED</code> (Pagamento recebido)</li>
+                        <li><code>PAYMENT_CONFIRMED</code> (Pagamento confirmado via cartão/PIX)</li>
+                        <li><code>PAYMENT_OVERDUE</code> (Mensalidade atrasada - bloqueia a empresa via API)</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="asaas-step-card">
+                    <div className="step-num">4</div>
+                    <div className="step-body">
+                      <strong>Criar Clientes e Assinaturas (Backend):</strong>
+                      <p>Ao registrar uma empresa na plataforma, faça uma requisição POST para <code>/v3/customers</code> do Asaas para criar o cliente. Em seguida, utilize <code>/v3/subscriptions</code> definindo o valor do plano, forma de pagamento (Pix/Credit Card/Boleto) e ciclo de cobrança.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Billing History */}
               <div style={{ marginTop: '2rem' }}>
-                <h3 className="settings-panel-title" style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Histórico de Faturamento</h3>
+                <h3 className="settings-panel-title" style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>Histórico de Faturamento (Simulação Asaas)</h3>
                 <div className="table-container small">
                   <table>
                     <thead>
@@ -263,17 +370,219 @@ export const Settings = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td style={{ fontFamily: 'monospace' }}>#INV-9824</td>
-                        <td>01/06/2026</td>
-                        <td>Starter Trial</td>
-                        <td>R$ 0,00</td>
-                        <td><span className="badge badge-success">Pago</span></td>
-                      </tr>
+                      {invoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                            Nenhuma transação financeira registrada até o momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        invoices.map((inv) => (
+                          <tr key={inv.id}>
+                            <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{inv.id}</td>
+                            <td>{new Date(inv.date).toLocaleDateString('pt-BR')}</td>
+                            <td>
+                              <span className="badge badge-outline" style={{ textTransform: 'capitalize' }}>
+                                {inv.planName}
+                              </span>
+                            </td>
+                            <td>R$ {inv.amount.toFixed(2)}</td>
+                            <td>
+                              <span className={`badge badge-${inv.status === 'Pago' ? 'success' : 'warning'}`}>
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {/* ASAAS CHECKOUT MODAL */}
+              {checkoutModalOpen && (
+                <div className="overlay">
+                  <div className="modal-content" style={{ maxWidth: '520px' }}>
+                    <div className="modal-header">
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <QrCode size={18} color="var(--color-primary)" />
+                          Asaas Checkout Gateway (Sandbox)
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                          Simule a compra segura do plano {checkoutPlan.toUpperCase()}
+                        </p>
+                      </div>
+                      <button onClick={() => setCheckoutModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {/* Summary box */}
+                      <div className="checkout-summary-box">
+                        <div className="flex-between">
+                          <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>Plano Selecionado</span>
+                          <span style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            Plano {checkoutPlan === 'starter' ? 'Starter' : 'Professional'}
+                          </span>
+                        </div>
+                        <div className="flex-between" style={{ marginTop: '4px' }}>
+                          <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>Valor Mensal</span>
+                          <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-primary)' }}>
+                            R$ {checkoutPlan === 'starter' ? '99,00' : '149,00'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Payment method selector tabs */}
+                      <div className="payment-method-tabs">
+                        <button
+                          type="button"
+                          className={payMethod === 'pix' ? 'active' : ''}
+                          onClick={() => setPayMethod('pix')}
+                        >
+                          Pix
+                        </button>
+                        <button
+                          type="button"
+                          className={payMethod === 'credit_card' ? 'active' : ''}
+                          onClick={() => setPayMethod('credit_card')}
+                        >
+                          Cartão de Crédito
+                        </button>
+                        <button
+                          type="button"
+                          className={payMethod === 'boleto' ? 'active' : ''}
+                          onClick={() => setPayMethod('boleto')}
+                        >
+                          Boleto Bancário
+                        </button>
+                      </div>
+
+                      {/* Payment method content screen */}
+                      <div className="payment-method-screen">
+                        {/* PIX SCREEN */}
+                        {payMethod === 'pix' && (
+                          <div className="pix-screen-wrapper flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
+                            <div className="pix-qr-box" style={{ background: 'white', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                              {/* Standard mockup QR code block */}
+                              <img
+                                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=00020126580014br.gov.bcb.pix0136asaas-sandbox-pix-socialapp202653039865802BR5913Runtime%20IA6009Sao%20Paulo62070503***6304d9c7"
+                                alt="Pix QR Code Sandbox"
+                                style={{ width: '150px', height: '150px' }}
+                              />
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0, maxWidth: '280px' }}>
+                              Escaneie o QR Code acima com o app do seu banco ou utilize o código Copia e Cola abaixo.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText('00020126580014br.gov.bcb.pix0136asaas-sandbox-pix-socialapp202653039865802BR5913Runtime%20IA6009Sao%20Paulo62070503***6304d9c7');
+                                addToast('Código Pix copiado!', 'success');
+                              }}
+                              className="btn btn-outline btn-sm"
+                            >
+                              Copiar Código Pix
+                            </button>
+                          </div>
+                        )}
+
+                        {/* CREDIT CARD SCREEN */}
+                        {payMethod === 'credit_card' && (
+                          <div className="credit-card-form" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div className="form-group">
+                              <label>Nome Impresso no Cartão</label>
+                              <input
+                                type="text"
+                                className="input-field"
+                                placeholder="EX: FERNANDO LIMA"
+                                value={cardHolder}
+                                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                              />
+                            </div>
+
+                            <div className="form-group">
+                              <label>Número do Cartão</label>
+                              <input
+                                type="text"
+                                className="input-field"
+                                placeholder="4444 5555 6666 7777"
+                                value={cardNumber}
+                                onChange={(e) => setCardNumber(e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                              <div className="form-group">
+                                <label>Vencimento (MM/AA)</label>
+                                <input
+                                  type="text"
+                                  placeholder="12/29"
+                                  className="input-field"
+                                  value={cardExpiry}
+                                  onChange={(e) => setCardExpiry(e.target.value)}
+                                />
+                              </div>
+                              <div className="form-group">
+                                <label>CVV (Código Segurança)</label>
+                                <input
+                                  type="text"
+                                  placeholder="123"
+                                  className="input-field"
+                                  value={cardCvv}
+                                  onChange={(e) => setCardCvv(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '0.675rem', color: 'var(--text-secondary)' }}>
+                              💳 Sandbox Ativo: Você pode preencher qualquer dado fictício para simular o recebimento.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* BOLETO SCREEN */}
+                        {payMethod === 'boleto' && (
+                          <div className="boleto-screen-wrapper flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
+                            <div className="boleto-mock-box" style={{ width: '100%', border: '1px dashed var(--border-color)', borderRadius: '6px', padding: '1rem', backgroundColor: 'var(--bg-app)' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                                Linha Digitável do Boleto Asaas:
+                              </span>
+                              <code style={{ fontSize: '0.8rem', display: 'block', wordBreak: 'break-all', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                                00190.00009 02672.480006 90001.000171 7 982300000{checkoutPlan === 'starter' ? '9900' : '14900'}
+                              </code>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>
+                              O boleto expira em 3 dias corridos. Você pode pagar simulando a compensação imediata abaixo.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`00190.00009 02672.480006 90001.000171 7 982300000${checkoutPlan === 'starter' ? '9900' : '14900'}`);
+                                addToast('Código de barras do boleto copiado!', 'success');
+                              }}
+                              className="btn btn-outline btn-sm"
+                            >
+                              Copiar Código de Barras
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="modal-footer">
+                      <button onClick={() => setCheckoutModalOpen(false)} className="btn btn-outline" disabled={isProcessingCheckout}>
+                        Cancelar
+                      </button>
+                      <button onClick={handleConfirmAsaasPayment} className="btn btn-primary" disabled={isProcessingCheckout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {isProcessingCheckout ? 'Processando Asaas...' : 'Confirmar Pagamento Simulado'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -698,12 +1007,100 @@ export const Settings = () => {
           border-radius: 50%;
         }
 
+        /* Asaas steps integration guide */
+        .asaas-guide-section {
+          background-color: var(--bg-app);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-lg);
+          padding: 1.25rem;
+        }
+        .asaas-steps-layout {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+        .asaas-step-card {
+          display: flex;
+          gap: 12px;
+          background-color: var(--bg-card);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          padding: 0.875rem;
+        }
+        .step-num {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background-color: var(--color-primary);
+          color: white;
+          font-weight: 700;
+          font-size: 0.775rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .step-body strong {
+          display: block;
+          font-size: 0.8rem;
+          color: var(--text-primary);
+          margin-bottom: 4px;
+        }
+        .step-body p {
+          font-size: 0.725rem;
+          color: var(--text-secondary);
+          line-height: 1.4;
+          margin: 0;
+        }
+        .step-body a {
+          color: var(--color-primary);
+          text-decoration: underline;
+        }
+
+        /* Checkout Simulator */
+        .checkout-summary-box {
+          background-color: var(--bg-app);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          padding: 0.875rem;
+        }
+        .payment-method-tabs {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+          border-bottom: 1px solid var(--border-color);
+          padding-bottom: 0.75rem;
+        }
+        .payment-method-tabs button {
+          padding: 0.5rem;
+          font-size: 0.775rem;
+          font-weight: 600;
+          background-color: var(--bg-app);
+          color: var(--text-secondary);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          cursor: pointer;
+          transition: var(--transition-fast);
+        }
+        .payment-method-tabs button.active {
+          background-color: var(--color-primary);
+          color: white;
+          border-color: var(--color-primary);
+        }
+        .payment-method-screen {
+          min-height: 160px;
+        }
+
         /* Responsive */
         @media (max-width: 900px) {
           .settings-container-grid {
             grid-template-columns: 1fr;
           }
           .plans-compare-grid {
+            grid-template-columns: 1fr;
+          }
+          .asaas-steps-layout {
             grid-template-columns: 1fr;
           }
         }

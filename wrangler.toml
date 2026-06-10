@@ -1,0 +1,12 @@
+# Wrangler Configuration for Cloudflare Pages
+name = "social-app"
+compatibility_date = "2026-06-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "social-db"
+database_id = "269b1947-1b74-42ea-879a-c7d6ac438d64"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "social-bk"

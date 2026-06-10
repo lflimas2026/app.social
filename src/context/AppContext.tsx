@@ -22,7 +22,7 @@ export interface User {
   avatar_url: string | null;
   timezone: string;
   theme: 'light' | 'dark' | 'auto';
-  plan: 'free' | 'starter' | 'professional' | 'enterprise';
+  plan: 'free' | 'starter' | 'professional';
   subscription_status: 'active' | 'canceled' | 'expired' | 'past_due';
   subscription_id: string | null;
   asaas_customer_id: string | null;
@@ -30,6 +30,7 @@ export interface User {
   last_payment_date: string | null;
   next_due_date: string | null;
   created_at: string;
+  cpf?: string | null;
   isAdmin?: boolean;
   isBlocked?: boolean;
   mustChangePassword?: boolean;
@@ -147,7 +148,7 @@ export interface Invoice {
   status: 'Pago' | 'Pendente' | 'Vencido';
 }
 
-export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'professional' | 'enterprise'): UserFeatures => {
+export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'professional'): UserFeatures => {
   switch (plan) {
     case 'free':
       return {
@@ -179,10 +180,9 @@ export const getDefaultFeaturesForPlan = (plan: 'free' | 'starter' | 'profession
         geminiIntegration: true,
         exportableReports: true
       };
-    case 'enterprise':
     default:
       return {
-        socialNetworksLimit: 20,
+        socialNetworksLimit: 6,
         schedulingsLimit: 999999,
         autoPosting: true,
         adsManager: true,
@@ -215,7 +215,7 @@ interface AppContextType {
   
   // Auth API
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (email: string, password: string, first_name: string, last_name: string, company_name: string) => Promise<boolean>;
+  signup: (email: string, password: string, first_name: string, last_name: string, company_name: string, cpf?: string) => Promise<boolean>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => void;
   updatePassword: (currentPass: string, newPass: string) => Promise<boolean>;
@@ -245,12 +245,12 @@ interface AppContextType {
   clearNotifications: () => void;
 
   // Admin / Payments API
-  adminCreateCompany: (email: string, firstName: string, lastName: string, companyName: string, plan: 'free' | 'starter' | 'professional' | 'enterprise') => void;
-  adminUpdateCompanyFeatures: (userId: string, data: { plan: 'free' | 'starter' | 'professional' | 'enterprise'; features: UserFeatures; isBlocked: boolean }) => void;
+  adminCreateCompany: (email: string, firstName: string, lastName: string, companyName: string, plan: 'free' | 'starter' | 'professional', cpf?: string) => void;
+  adminUpdateCompanyFeatures: (userId: string, data: { plan: 'free' | 'starter' | 'professional'; features: UserFeatures; isBlocked: boolean }) => void;
   adminDeleteUser: (userId: string) => void;
   adminResetPassword: (userId: string) => Promise<string | null>;
   adminChangeUserPassword: (userId: string, newPassword: string) => void;
-  simulateAsaasUpgrade: (plan: 'starter' | 'professional' | 'enterprise', paymentMethod: 'pix' | 'credit_card' | 'boleto', value: number) => Promise<boolean>;
+  simulateAsaasUpgrade: (plan: 'starter' | 'professional', paymentMethod: 'pix' | 'credit_card' | 'boleto', value: number) => Promise<boolean>;
   createPixPayment: (planId: string) => Promise<any>;
   createCardPayment: (planId: string) => Promise<any>;
   createSubscription: (planId: string, billingType: 'PIX' | 'CREDIT_CARD') => Promise<boolean>;
@@ -454,11 +454,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signup = async (email: string, password: string, first_name: string, last_name: string, company_name: string): Promise<boolean> => {
+  const signup = async (email: string, password: string, first_name: string, last_name: string, company_name: string, cpf?: string): Promise<boolean> => {
     try {
       const data = await apiFetch('/api/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ email, password, first_name, last_name, company_name })
+        body: JSON.stringify({ email, password, first_name, last_name, company_name, cpf })
       });
       localStorage.setItem('social_user_id', data.user.id);
       setCurrentUser(data.user);
@@ -680,12 +680,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     firstName: string,
     lastName: string,
     companyName: string,
-    plan: 'free' | 'starter' | 'professional' | 'enterprise'
+    plan: 'free' | 'starter' | 'professional',
+    cpf?: string
   ) => {
     try {
       await apiFetch('/api/admin/users/create', {
         method: 'POST',
-        body: JSON.stringify({ email, firstName, lastName, companyName, plan })
+        body: JSON.stringify({ email, firstName, lastName, companyName, plan, cpf })
       });
       addToast(`Empresa "${companyName}" criada com sucesso!`, 'success');
       loadAdminUsers();

@@ -58,20 +58,6 @@ export const PLANS: Record<string, Plan> = {
       geminiIntegration: 1,
       exportableReports: 1
     }
-  },
-  enterprise: {
-    id: 'enterprise',
-    name: 'Plano Enterprise',
-    price: 499.00,
-    features: {
-      socialNetworksLimit: 20,
-      schedulingsLimit: 999999,
-      autoPosting: 1,
-      adsManager: 1,
-      aiOptimization: 1,
-      geminiIntegration: 1,
-      exportableReports: 1
-    }
   }
 };
 

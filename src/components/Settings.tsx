@@ -33,7 +33,7 @@ export const Settings = () => {
 
   // Checkout modal states
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
-  const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional' | 'enterprise'>('starter');
+  const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional'>('starter');
   const [payMethod, setPayMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
 
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -87,7 +87,7 @@ export const Settings = () => {
     setConfirmPassword('');
   };
 
-  const handleUpgradePlan = (planName: 'starter' | 'professional' | 'enterprise') => {
+  const handleUpgradePlan = (planName: 'starter' | 'professional') => {
     setCheckoutPlan(planName);
     setPayMethod('pix');
     setPixQrCode('');
@@ -372,33 +372,7 @@ export const Settings = () => {
                   )}
                 </div>
 
-                {/* Plan 4: Enterprise */}
-                <div className={`plan-compare-card premium ${user?.plan === 'enterprise' ? 'current' : ''}`} style={{ borderColor: 'var(--color-primary)' }}>
-                  {user?.plan === 'enterprise' && <div className="plan-badge">Atual</div>}
-                  <div className="plan-badge sparkles" style={{ backgroundColor: 'var(--color-primary)' }}>
-                    <Building size={10} />
-                    Corporativo
-                  </div>
-                  <span className="plan-title">Plano Enterprise</span>
-                  <div className="plan-price-row">
-                    <span className="price-currency">R$</span>
-                    <span className="price-num">499</span>
-                    <span className="price-period">/mês</span>
-                  </div>
-                  <ul className="plan-features-list">
-                    <li><Check size={12} className="feat-ok" /> 20 redes sociais conectadas</li>
-                    <li><Check size={12} className="feat-ok" /> Agendamentos ilimitados</li>
-                    <li><Check size={12} className="feat-ok" /> Auto-posting ativo</li>
-                    <li><Check size={12} className="feat-ok" /> Gerenciador de Anúncios avançado</li>
-                    <li><Check size={12} className="feat-ok" /> Gemini 2.5 Flash integrada</li>
-                    <li><Check size={12} className="feat-ok" /> Suporte prioritário 24/7</li>
-                  </ul>
-                  {user?.plan !== 'enterprise' && (
-                    <button onClick={() => handleUpgradePlan('enterprise')} className="btn btn-primary btn-sm upgrade-btn">
-                      Adquirir Enterprise
-                    </button>
-                  )}
-                </div>
+                {/* Enterprise removed per request (corporate plan) */}
               </div>
 
               {/* Official Asaas Integration Step-by-Step Guide */}

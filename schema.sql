@@ -34,6 +34,7 @@ CREATE TABLE users (
   is_admin INTEGER DEFAULT 0, -- 0 = false, 1 = true
   is_blocked INTEGER DEFAULT 0, -- 0 = false, 1 = true
   password TEXT,
+  cpf TEXT,
   must_change_password INTEGER DEFAULT 0,
   created_at TEXT NOT NULL
 );

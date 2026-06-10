@@ -12,6 +12,7 @@ export const Auth = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [cpf, setCpf] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Google OAuth Popup states
@@ -28,12 +29,12 @@ export const Auth = () => {
         const success = await login(email, password);
         if (!success) setLoading(false);
       } else if (mode === 'signup') {
-        if (!email || !password || !firstName || !companyName) {
+        if (!email || !password || !firstName || !companyName || !cpf) {
           addToast('Preencha todos os campos obrigatórios.', 'error');
           setLoading(false);
           return;
         }
-        await signup(email, password, firstName, lastName, companyName);
+        await signup(email, password, firstName, lastName, companyName, cpf);
       } else {
         // Forgot password
         if (!email) {
@@ -128,19 +129,34 @@ export const Auth = () => {
           )}
 
           {mode === 'signup' && (
-            <div className="form-group">
-              <label>Nome da Empresa</label>
-              <div className="input-with-icon">
-                <Building2 size={16} className="input-icon" />
-                <input
-                  type="text"
-                  required
-                  placeholder="Minha Agência LTDA"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                />
+            <>
+              <div className="form-group">
+                <label>Nome da Empresa</label>
+                <div className="input-with-icon">
+                  <Building2 size={16} className="input-icon" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Minha Agência LTDA"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+              <div className="form-group">
+                <label>CPF (somente números)</label>
+                <div className="input-with-icon">
+                  <UserIcon size={16} className="input-icon" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="12345678909"
+                    value={cpf}
+                    onChange={(e) => setCpf(e.target.value.replace(/[^0-9]/g, ''))}
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           <div className="form-group">

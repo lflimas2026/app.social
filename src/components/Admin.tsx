@@ -26,11 +26,12 @@ export const Admin = () => {
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
-  const [newPlan, setNewPlan] = useState<'free' | 'starter' | 'professional' | 'enterprise'>('free');
+  const [newPlan, setNewPlan] = useState<'free' | 'starter' | 'professional'>('free');
+  const [newCpf, setNewCpf] = useState('');
 
   // Resource Editor Modal state
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [editPlan, setEditPlan] = useState<'free' | 'starter' | 'professional' | 'enterprise'>('free');
+  const [editPlan, setEditPlan] = useState<'free' | 'starter' | 'professional'>('free');
   const [editIsBlocked, setEditIsBlocked] = useState(false);
   const [editSocialLimit, setEditSocialLimit] = useState(3);
   const [editSchedulingLimit, setEditSchedulingLimit] = useState(10);
@@ -68,7 +69,6 @@ export const Admin = () => {
     .reduce((acc, u) => {
       if (u.plan === 'starter') return acc + 99;
       if (u.plan === 'professional') return acc + 149;
-      if (u.plan === 'enterprise') return acc + 499;
       return acc;
     }, 0);
 
@@ -78,7 +78,7 @@ export const Admin = () => {
       addToast('Preencha os campos obrigatórios.', 'warning');
       return;
     }
-    adminCreateCompany(newEmail, newFirstName, newLastName, newCompanyName, newPlan);
+    adminCreateCompany(newEmail, newFirstName, newLastName, newCompanyName, newPlan, newCpf);
     
     // Reset Form
     setNewEmail('');
@@ -86,6 +86,7 @@ export const Admin = () => {
     setNewLastName('');
     setNewCompanyName('');
     setNewPlan('free');
+    setNewCpf('');
   };
 
   const handleOpenEditor = (user: any) => {
@@ -102,7 +103,7 @@ export const Admin = () => {
   };
 
   // Sync editor fields with selected plan when plan changes in the dropdown (defaults helper)
-  const handlePlanChange = (plan: 'free' | 'starter' | 'professional' | 'enterprise') => {
+  const handlePlanChange = (plan: 'free' | 'starter' | 'professional') => {
     setEditPlan(plan);
     const defaults = getDefaultFeaturesForPlan(plan);
     setEditSocialLimit(defaults.socialNetworksLimit);
@@ -293,6 +294,17 @@ export const Admin = () => {
                 placeholder="Ex: contato@empresa.com"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>CPF (opcional)</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="12345678909"
+                value={newCpf}
+                onChange={(e) => setNewCpf(e.target.value.replace(/[^0-9]/g, ''))}
               />
             </div>
 

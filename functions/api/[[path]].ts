@@ -36,6 +36,7 @@ const mapUserRow = (row: any) => {
     last_payment_date: row.last_payment_date,
     next_due_date: row.next_due_date,
     created_at: row.created_at,
+    cpf: row.cpf || null,
     isAdmin: !!row.is_admin,
     isBlocked: !!row.is_blocked,
       mustChangePassword: !!row.must_change_password,
@@ -73,15 +74,21 @@ const getAuthUser = async (c: any) => {
     const baseUrl = c.env.ASAAS_BASE_URL;
     if (apiKey && baseUrl) {
       try {
-        console.log(`[getAuthUser] Criando cliente no Asaas para ${userRow.email}...`);
-        const customer = await AsaasService.createCustomer(apiKey, baseUrl, {
-          name: `${userRow.first_name} ${userRow.last_name}`.trim() || userRow.email.split('@')[0],
-          email: userRow.email,
-          externalReference: userRow.id
-        });
-        await c.env.DB.prepare('UPDATE users SET asaas_customer_id = ? WHERE id = ?')
-          .bind(customer.id, userRow.id).run();
-        userRow.asaas_customer_id = customer.id;
+        console.log(`[getAuthUser] Tentando sincronizar cliente Asaas para ${userRow.email}...`);
+        if (userRow.cpf) {
+          const customer = await AsaasService.createCustomer(apiKey, baseUrl, {
+            name: `${userRow.first_name} ${userRow.last_name}`.trim() || userRow.email.split('@')[0],
+            email: userRow.email,
+            externalReference: userRow.id,
+            cpfCnpj: userRow.cpf
+          });
+          await c.env.DB.prepare('UPDATE users SET asaas_customer_id = ? WHERE id = ?')
+            .bind(customer.id, userRow.id).run();
+          userRow.asaas_customer_id = customer.id;
+          console.log('[getAuthUser] Cliente Asaas sincronizado com sucesso.');
+        } else {
+          console.log('[getAuthUser] CPF ausente; não será criado cliente Asaas automaticamente.');
+        }
       } catch (err: any) {
         console.error('[getAuthUser] Erro ao sincronizar cliente com Asaas:', err.message);
       }
@@ -218,7 +225,7 @@ app.post('/api/auth/login', async (c) => {
 
 // Auth: Signup
 app.post('/api/auth/signup', async (c) => {
-  const { email, password, first_name, last_name, company_name } = await c.req.json();
+  const { email, password, first_name, last_name, company_name, cpf } = await c.req.json();
   const db = c.env.DB;
 
   const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase()).first();
@@ -232,8 +239,8 @@ app.post('/api/auth/signup', async (c) => {
   const created_at = new Date().toISOString();
   const next_billing = isNewAdmin ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  await db.prepare('INSERT INTO users (id, email, first_name, last_name, company_name, plan, subscription_status, next_due_date, is_admin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, email.toLowerCase(), first_name, last_name, company_name, plan, 'active', next_billing, isNewAdmin ? 1 : 0, created_at)
+  await db.prepare('INSERT INTO users (id, email, first_name, last_name, company_name, cpf, plan, subscription_status, next_due_date, is_admin, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, email.toLowerCase(), first_name, last_name, company_name, cpf || null, plan, 'active', next_billing, isNewAdmin ? 1 : 0, created_at)
     .run();
 
   const feats = getDefaultFeaturesForPlan(plan);
@@ -701,10 +708,7 @@ app.post('/api/webhooks/asaas', async (c) => {
         
         let planId = 'free';
         let planName = 'Plano Free';
-        if (amount >= 499) {
-          planId = 'enterprise';
-          planName = 'Plano Enterprise';
-        } else if (amount >= 149) {
+        if (amount >= 149) {
           planId = 'professional';
           planName = 'Plano Professional';
         } else if (amount >= 99) {
@@ -813,8 +817,26 @@ app.post('/api/payments/pix', async (c) => {
   if (!plan) return c.json({ error: 'Plano inválido' }, 400);
 
   try {
-    const customerId = user.asaas_customer_id;
-    if (!customerId) return c.json({ error: 'Asaas Customer ID não encontrado. Faça login novamente.' }, 400);
+    let customerId = user.asaas_customer_id;
+    // If no Asaas customer yet, try to create one on-demand using CPF
+    if (!customerId) {
+      if (!user.cpf) {
+        return c.json({ error: 'CPF necessário para gerar cobrança. Atualize seu perfil com CPF.' }, 400);
+      }
+      try {
+        const customer = await AsaasService.createCustomer(apiKey, baseUrl, {
+          name: `${user.first_name} ${user.last_name}`.trim() || user.email.split('@')[0],
+          email: user.email,
+          externalReference: user.id,
+          cpfCnpj: user.cpf
+        });
+        await db.prepare('UPDATE users SET asaas_customer_id = ? WHERE id = ?').bind(customer.id, user.id).run();
+        customerId = customer.id;
+      } catch (err: any) {
+        console.error('[POST /api/payments/pix] Erro criando cliente Asaas:', err.message);
+        return c.json({ error: 'Falha ao criar cliente Asaas. Verifique CPF e tente novamente.' }, 500);
+      }
+    }
 
     const result = await AsaasService.createPixPayment(apiKey, baseUrl, {
       customer: customerId,
@@ -993,7 +1015,7 @@ app.get('/api/admin/users', async (c) => {
 app.post('/api/admin/users/create', async (c) => {
   const user = await getAuthUser(c);
   if (!user || !user.isAdmin) return c.json({ error: 'Não autorizado' }, 401);
-  const { email, firstName, lastName, companyName, plan } = await c.req.json();
+  const { email, firstName, lastName, companyName, plan, cpf } = await c.req.json();
   const db = c.env.DB;
 
   const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase()).first();
@@ -1005,8 +1027,8 @@ app.post('/api/admin/users/create', async (c) => {
   const created_at = new Date().toISOString();
   const next_billing = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  await db.prepare('INSERT INTO users (id, email, first_name, last_name, company_name, plan, subscription_status, next_due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, email.toLowerCase(), firstName, lastName, companyName, plan, 'active', next_billing, created_at)
+  await db.prepare('INSERT INTO users (id, email, first_name, last_name, company_name, cpf, plan, subscription_status, next_due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, email.toLowerCase(), firstName, lastName, companyName, cpf || null, plan, 'active', next_billing, created_at)
     .run();
 
   const feats = getDefaultFeaturesForPlan(plan);

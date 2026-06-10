@@ -39,8 +39,12 @@ export const Dashboard = () => {
     addPost,
     searchQuery,
     setActiveTab,
-    addToast
+    addToast,
+    connectedAccounts,
+    currentUser
   } = useApp();
+
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
 
   const [periodFilter, setPeriodFilter] = useState<'today' | 'week' | 'month'>('week');
 
@@ -112,6 +116,12 @@ export const Dashboard = () => {
   // SEARCH FILTER APPLIED
   const filteredPosts = posts
     .filter((p) => p.content.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter((p) => {
+      if (selectedAccountId === 'all') return true;
+      const acc = connectedAccounts.find(a => a.id === selectedAccountId);
+      if (!acc) return true;
+      return p.platforms.includes(acc.platform);
+    })
     .slice(0, 5);
 
   const filteredCampaigns = campaigns
@@ -146,6 +156,18 @@ export const Dashboard = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Rede:</label>
+            <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="input-field">
+              <option value="all">Todas</option>
+              {connectedAccounts.slice(0, currentUser?.features?.socialNetworksLimit ?? 1).map((acc) => (
+                <option key={acc.id} value={acc.id}>{acc.account_name} · {acc.platform}</option>
+              ))}
+            </select>
+            {connectedAccounts.length > (currentUser?.features?.socialNetworksLimit ?? 1) && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-warning)', marginLeft: '8px' }}>Seu plano permite ver até {currentUser?.features?.socialNetworksLimit} rede(s)</span>
+            )}
+          </div>
           <div className="period-tabs">
             <button
               onClick={() => setPeriodFilter('today')}

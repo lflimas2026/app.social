@@ -32,6 +32,7 @@ export interface User {
   created_at: string;
   isAdmin?: boolean;
   isBlocked?: boolean;
+  mustChangePassword?: boolean;
   features?: UserFeatures;
 }
 
@@ -234,7 +235,7 @@ interface AppContextType {
   toggleAutomation: (id: string) => void;
   
   // Connected Accounts API
-  connectAccount: (platform: ConnectedAccount['platform'], accountName: string) => void;
+  connectAccount: (platform: ConnectedAccount['platform'], accountName: string, config?: any) => void;
   disconnectAccount: (id: string) => void;
   forceSync: () => Promise<void>;
   
@@ -246,6 +247,9 @@ interface AppContextType {
   // Admin / Payments API
   adminCreateCompany: (email: string, firstName: string, lastName: string, companyName: string, plan: 'free' | 'starter' | 'professional' | 'enterprise') => void;
   adminUpdateCompanyFeatures: (userId: string, data: { plan: 'free' | 'starter' | 'professional' | 'enterprise'; features: UserFeatures; isBlocked: boolean }) => void;
+  adminDeleteUser: (userId: string) => void;
+  adminResetPassword: (userId: string) => Promise<string | null>;
+  adminChangeUserPassword: (userId: string, newPassword: string) => void;
   simulateAsaasUpgrade: (plan: 'starter' | 'professional' | 'enterprise', paymentMethod: 'pix' | 'credit_card' | 'boleto', value: number) => Promise<boolean>;
   createPixPayment: (planId: string) => Promise<any>;
   createCardPayment: (planId: string) => Promise<any>;
@@ -438,6 +442,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       });
       localStorage.setItem('social_user_id', data.user.id);
       setCurrentUser(data.user);
+      if (data.user.mustChangePassword) {
+        setActiveTab('settings');
+        addToast('Senha provisória detectada. Altere sua senha obrigatoriamente.', 'warning');
+      }
       addToast(data.user.isAdmin ? 'Bem-vindo, Administrador!' : `Bem-vindo de volta! (${data.user.company_name})`, 'success');
       return true;
     } catch (err: any) {
@@ -600,11 +608,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // --- CONNECTED ACCOUNTS API ---
-  const connectAccount = async (platform: ConnectedAccount['platform'], accountName: string) => {
+  const connectAccount = async (platform: ConnectedAccount['platform'], accountName: string, config?: any) => {
     try {
       await apiFetch('/api/connected-accounts', {
         method: 'POST',
-        body: JSON.stringify({ platform, accountName })
+        body: JSON.stringify({ platform, accountName, config })
       });
       addToast(`Conta ${platform.toUpperCase()} conectada!`, 'success');
       loadUserData();
@@ -796,6 +804,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const adminDeleteUser = async (userId: string) => {
+    try {
+      await apiFetch('/api/admin/users/delete', { method: 'POST', body: JSON.stringify({ userId }) });
+      addToast('Usuário removido pelo admin.', 'info');
+      loadAdminUsers();
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao remover usuário.', 'error');
+    }
+  };
+
+  const adminResetPassword = async (userId: string): Promise<string | null> => {
+    try {
+      const res = await apiFetch('/api/admin/users/reset-password', { method: 'POST', body: JSON.stringify({ userId }) });
+      addToast('Senha provisória gerada com sucesso.', 'success');
+      return res.tempPassword || null;
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao resetar senha.', 'error');
+      return null;
+    }
+  };
+
+  const adminChangeUserPassword = async (userId: string, newPassword: string) => {
+    try {
+      await apiFetch('/api/admin/users/change-password', { method: 'POST', body: JSON.stringify({ userId, newPassword }) });
+      addToast('Senha alterada com sucesso pelo admin.', 'success');
+      loadAdminUsers();
+    } catch (err: any) {
+      addToast(err.message || 'Erro ao alterar senha.', 'error');
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -838,6 +877,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         clearNotifications,
         adminCreateCompany,
         adminUpdateCompanyFeatures,
+        adminDeleteUser,
+        adminResetPassword,
+        adminChangeUserPassword,
         simulateAsaasUpgrade,
         createPixPayment,
         createCardPayment,

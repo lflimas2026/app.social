@@ -38,6 +38,7 @@ const mapUserRow = (row: any) => {
     created_at: row.created_at,
     isAdmin: !!row.is_admin,
     isBlocked: !!row.is_blocked,
+      mustChangePassword: !!row.must_change_password,
     features: {
       socialNetworksLimit: row.social_networks_limit ?? 1,
       schedulingsLimit: row.schedulings_limit ?? 10,
@@ -320,7 +321,7 @@ app.get('/api/data', async (c) => {
   const invoices = await db.prepare('SELECT * FROM invoices WHERE user_id = ? ORDER BY date DESC').bind(user.id).all();
 
   return c.json({
-    connectedAccounts: accounts.results.map((acc: any) => ({ ...acc, is_active: !!acc.is_active })),
+    connectedAccounts: accounts.results.map((acc: any) => ({ ...acc, is_active: !!acc.is_active, config: acc.config ? JSON.parse(acc.config) : null })),
     posts: posts.results.map((p: any) => ({
       ...p,
       media_urls: JSON.parse(p.media_urls || '[]'),
@@ -556,15 +557,15 @@ app.put('/api/automations/:id/toggle', async (c) => {
 app.post('/api/connected-accounts', async (c) => {
   const user = await getAuthUser(c);
   if (!user) return c.json({ error: 'Não autorizado' }, 401);
-  const { platform, accountName } = await c.req.json();
+  const { platform, accountName, config } = await c.req.json();
   const id = uuid();
   const created_at = new Date().toISOString();
   const accountId = platform.substring(0, 2) + '_' + Math.floor(Math.random() * 9000 + 1000);
 
   await c.env.DB.prepare(`
-    INSERT INTO connected_accounts (id, user_id, platform, account_name, account_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(id, user.id, platform, accountName, accountId, created_at).run();
+    INSERT INTO connected_accounts (id, user_id, platform, account_name, account_id, config, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id, user.id, platform, accountName, accountId, config ? JSON.stringify(config) : null, created_at).run();
 
   // Audit Log
   await c.env.DB.prepare(`
@@ -1047,6 +1048,52 @@ app.post('/api/admin/users/update-features', async (c) => {
   ).run();
 
   return c.json({ success: true });
+});
+
+// Admin: Delete user
+app.post('/api/admin/users/delete', async (c) => {
+  const user = await getAuthUser(c);
+  if (!user || !user.isAdmin) return c.json({ error: 'Não autorizado' }, 401);
+  const { userId } = await c.req.json();
+  try {
+    await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+    await c.env.DB.prepare('INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(uuid(), user.id, `Removido usuário ${userId} pelo admin`, 'user', userId, new Date().toISOString()).run();
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// Admin: Reset password (generates temporary password and forces change)
+app.post('/api/admin/users/reset-password', async (c) => {
+  const user = await getAuthUser(c);
+  if (!user || !user.isAdmin) return c.json({ error: 'Não autorizado' }, 401);
+  const { userId } = await c.req.json();
+  const temp = 'tmp_' + Math.random().toString(36).substring(2, 10);
+  try {
+    await c.env.DB.prepare('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?').bind(temp, userId).run();
+    await c.env.DB.prepare('INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(uuid(), user.id, `Resetou senha do usuário ${userId}`, 'user', userId, new Date().toISOString()).run();
+    return c.json({ success: true, tempPassword: temp });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// Admin: Change user's password (set new one and clear must_change flag)
+app.post('/api/admin/users/change-password', async (c) => {
+  const user = await getAuthUser(c);
+  if (!user || !user.isAdmin) return c.json({ error: 'Não autorizado' }, 401);
+  const { userId, newPassword } = await c.req.json();
+  try {
+    await c.env.DB.prepare('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?').bind(newPassword, userId).run();
+    await c.env.DB.prepare('INSERT INTO audit_logs (id, user_id, action, resource_type, resource_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(uuid(), user.id, `Alterou senha do usuário ${userId}`, 'user', userId, new Date().toISOString()).run();
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
 });
 
 // Admin Financial Metrics

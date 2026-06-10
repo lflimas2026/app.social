@@ -33,6 +33,8 @@ CREATE TABLE users (
   next_due_date TEXT,
   is_admin INTEGER DEFAULT 0, -- 0 = false, 1 = true
   is_blocked INTEGER DEFAULT 0, -- 0 = false, 1 = true
+  password TEXT,
+  must_change_password INTEGER DEFAULT 0,
   created_at TEXT NOT NULL
 );
 
@@ -58,6 +60,7 @@ CREATE TABLE connected_accounts (
   account_avatar TEXT,
   is_active INTEGER DEFAULT 1,
   last_synced TEXT,
+  config TEXT,
   created_at TEXT NOT NULL
 );
 

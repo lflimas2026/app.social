@@ -21,6 +21,10 @@ export const Integrations = () => {
   const [connectModalOpen, setConnectModalOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<any>(null);
   const [accountNameInput, setAccountNameInput] = useState('');
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [adAccountId, setAdAccountId] = useState('');
 
   const platformsList = [
     { id: 'instagram', name: 'Instagram Feed', icon: Instagram, color: '#e1306c', desc: 'Agende postagens orgânicas de imagens e vídeos.' },
@@ -61,7 +65,16 @@ export const Integrations = () => {
       }
     }
 
-    connectAccount(selectedPlatform, accountNameInput.trim());
+    // Build platform-specific config
+    let config: any = null;
+    if (selectedPlatform === 'instagram' || selectedPlatform === 'facebook' || selectedPlatform === 'tiktok') {
+      config = { appId: appId || null, appSecret: appSecret || null, accessToken: accessToken || null };
+    }
+    if (selectedPlatform === 'meta_ads' || selectedPlatform === 'tiktok_ads') {
+      config = { clientId: appId || null, clientSecret: appSecret || null, accessToken: accessToken || null, adAccountId: adAccountId || null };
+    }
+
+    connectAccount(selectedPlatform, accountNameInput.trim(), config);
     setConnectModalOpen(false);
   };
 
@@ -237,6 +250,44 @@ export const Integrations = () => {
                   onChange={(e) => setAccountNameInput(e.target.value)}
                 />
               </div>
+              {/* Platform specific config inputs */}
+              {(selectedPlatform === 'instagram' || selectedPlatform === 'facebook' || selectedPlatform === 'tiktok') && (
+                <>
+                  <div className="form-group">
+                    <label>App ID / Client ID</label>
+                    <input type="text" className="input-field" value={appId} onChange={(e) => setAppId(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>App Secret / Client Secret</label>
+                    <input type="text" className="input-field" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Access Token (se disponível)</label>
+                    <input type="text" className="input-field" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} />
+                  </div>
+                </>
+              )}
+
+              {(selectedPlatform === 'meta_ads' || selectedPlatform === 'tiktok_ads') && (
+                <>
+                  <div className="form-group">
+                    <label>Client ID</label>
+                    <input type="text" className="input-field" value={appId} onChange={(e) => setAppId(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Client Secret</label>
+                    <input type="text" className="input-field" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Ad Account ID</label>
+                    <input type="text" className="input-field" value={adAccountId} onChange={(e) => setAdAccountId(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Access Token</label>
+                    <input type="text" className="input-field" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="modal-footer">

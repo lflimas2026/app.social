@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const Admin = () => {
-  const { allUsers, adminCreateCompany, adminUpdateCompanyFeatures, addToast, getFinancialMetrics } = useApp();
+  const { allUsers, adminCreateCompany, adminUpdateCompanyFeatures, adminDeleteUser, adminResetPassword, adminChangeUserPassword, addToast, getFinancialMetrics } = useApp();
 
   // Search filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +39,8 @@ export const Admin = () => {
   const [editAiOpt, setEditAiOpt] = useState(true);
   const [editGemini, setEditGemini] = useState(true);
   const [editExportableReports, setEditExportableReports] = useState(true);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   // Financial KPIs states
   const [financialMetrics, setFinancialMetrics] = useState<any>(null);
@@ -549,15 +551,69 @@ export const Admin = () => {
                   </label>
                 </div>
               </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: 0 }} />
+
+              {/* Password Management */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+                  Gerenciamento de Senha
+                </h4>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <button
+                    onClick={async () => {
+                      if (!editingUser) return;
+                      const tmp = await adminResetPassword(editingUser.id);
+                      setTempPassword(tmp);
+                    }}
+                    className="btn btn-outline"
+                  >
+                    Gerar Senha Provisória
+                  </button>
+                  {tempPassword && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', background: 'var(--bg-app)', padding: '6px 8px', borderRadius: '6px' }}>
+                      Provisória: {tempPassword}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input type="password" className="input-field" placeholder="Nova senha" value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} />
+                  <button
+                    onClick={async () => {
+                      if (!editingUser || !newPasswordInput) return addToast('Digite a nova senha.', 'warning');
+                      await adminChangeUserPassword(editingUser.id, newPasswordInput);
+                      setNewPasswordInput('');
+                      setTempPassword(null);
+                    }}
+                    className="btn btn-primary"
+                  >
+                    Alterar Senha
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="modal-footer">
-              <button onClick={() => setEditingUser(null)} className="btn btn-outline">
-                Cancelar
-              </button>
-              <button onClick={handleSaveFeatures} className="btn btn-primary">
-                Salvar Configurações
-              </button>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={async () => {
+                  if (!editingUser) return;
+                  if (!confirm('Confirma exclusão desta empresa e todos os seus dados?')) return;
+                  await adminDeleteUser(editingUser.id);
+                  setEditingUser(null);
+                }} className="btn btn-ghost" style={{ color: 'var(--color-error)' }}>
+                  Excluir Empresa
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => setEditingUser(null)} className="btn btn-outline">
+                  Cancelar
+                </button>
+                <button onClick={handleSaveFeatures} className="btn btn-primary">
+                  Salvar Configurações
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -42,7 +42,7 @@ export const Admin = () => {
 
   // Financial KPIs states
   const [financialMetrics, setFinancialMetrics] = useState<any>(null);
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const [_isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
   useEffect(() => {
     const fetchMetrics = async () => {

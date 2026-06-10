@@ -26,7 +26,6 @@ export const Settings = () => {
     addToast,
     createPixPayment,
     createCardPayment,
-    createSubscription,
     cancelSubscription
   } = useApp();
   
@@ -36,10 +35,7 @@ export const Settings = () => {
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<'starter' | 'professional' | 'enterprise'>('starter');
   const [payMethod, setPayMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   // Real Asaas payment response states
@@ -496,6 +492,10 @@ export const Settings = () => {
                         ))
                       )}
                     </tbody>
+                  </table>
+                </div>
+              </div>
+
                         {/* ASAAS CHECKOUT MODAL */}
               {checkoutModalOpen && (
                 <div className="overlay">

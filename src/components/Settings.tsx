@@ -172,7 +172,7 @@ export const Settings = () => {
             className={`settings-nav-btn ${activeSubTab === 'plan' ? 'active' : ''}`}
           >
             <CreditCard size={16} />
-            <span>Assinatura & Plano</span>
+            <span>Assinatura &amp; Plano</span>
           </button>
 
           <button
@@ -180,7 +180,7 @@ export const Settings = () => {
             className={`settings-nav-btn ${activeSubTab === 'alerts' ? 'active' : ''}`}
           >
             <Bell size={16} />
-            <span>Alertas & Notificações</span>
+            <span>Alertas &amp; Notificações</span>
           </button>
 
           <button
@@ -663,7 +663,7 @@ export const Settings = () => {
           {/* TAB 3: NOTIFICATION ALERTS */}
           {activeSubTab === 'alerts' && (
             <div className="card settings-panel-card">
-              <h2 className="settings-panel-title">Notificações & Alertas</h2>
+              <h2 className="settings-panel-title">Notificações &amp; Alertas</h2>
               <p className="settings-panel-subtitle">Configure como e quando você quer receber notificações do sistema</p>
 
               <div className="alerts-preferences-list">
